@@ -1,0 +1,21 @@
+[package]
+name = "transit-kindle"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+axum = { version = "0.6.19", features = ["headers"] }
+chrono = { version = "0.4.26", features = ["serde"] }
+eyre = "0.6.8"
+itertools = "0.11.0"
+reqwest = { version = "0.11.18", features = ["json", "gzip"] }
+serde = { version = "1.0.174", features = ["derive"] }
+serde_json = "1.0.103"
+serde_yaml = "0.9.25"
+skia-safe = { version = "0.63.0", features=["textlayout"]}
+tokio = { version = "1.29.1", features = ["full"] }
+tracing = "0.1.37"
+tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
+unicode-bom = "2.0.2"
