@@ -9,9 +9,7 @@ use chrono::{DateTime, Duration, Utc};
 use eyre::{bail, eyre, Context, Result};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use skia_safe::{
-    Bitmap, Canvas, Color4f, Font, FontStyle, ImageInfo, Paint, Rect, TextBlob, Typeface,
-};
+use skia_safe::{Bitmap, Canvas, Color4f, Font, FontStyle, ImageInfo, Paint, TextBlob, Typeface};
 use tokio::task::JoinSet;
 use tracing_subscriber::EnvFilter;
 
@@ -202,27 +200,6 @@ async fn main() -> Result<()> {
             debug!(line_name=&line.line, bounds=?line_name_oval, "calculating line name bounds");
 
             canvas.draw_oval(line_name_oval, &grey_paint);
-
-            canvas.draw_line(
-                (line_name_oval.left, line_name_oval.top),
-                (line_name_oval.right, line_name_oval.top),
-                &black_paint,
-            );
-            canvas.draw_line(
-                (line_name_oval.left, line_name_oval.top),
-                (line_name_oval.left, line_name_oval.bottom),
-                &black_paint,
-            );
-            canvas.draw_line(
-                (line_name_oval.right, line_name_oval.bottom),
-                (line_name_oval.left, line_name_oval.bottom),
-                &black_paint,
-            );
-            canvas.draw_line(
-                (line_name_oval.right, line_name_oval.bottom),
-                (line_name_oval.right, line_name_oval.top),
-                &black_paint,
-            );
 
             canvas.draw_text_blob(&line_name_blob, (x, *y), &black_paint);
 
