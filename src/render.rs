@@ -7,7 +7,6 @@ use crate::{
 use eyre::{bail, eyre, Result};
 use itertools::Itertools;
 use skia_safe::{
-    font_style::{Slant, Weight, Width},
     Bitmap, Canvas, Color4f, Font, FontStyle, ImageInfo, Paint, Point, TextBlob, Typeface,
 };
 use tracing::warn;
@@ -15,7 +14,7 @@ use tracing::warn;
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum RenderTarget {
     Kindle,
-    Other,
+    Browser,
 }
 
 fn render_ctx(

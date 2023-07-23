@@ -1,11 +1,10 @@
 use axum::{
     body::{Bytes, Full},
     extract::State,
-    headers::UserAgent,
     http::StatusCode,
     response::{IntoResponse, Redirect, Response},
     routing::get,
-    Router, TypedHeader,
+    Router,
 };
 use eyre::Context;
 use tower::ServiceBuilder;
@@ -65,6 +64,7 @@ impl IntoResponse for ErrorPng {
 pub async fn serve(client: Client, config_file: ConfigFile) -> eyre::Result<()> {
     let app = Router::new()
         .route("/stops.png", get(handle_stops_png))
+        .route("/browser.png", get(handle_stops_browser_png))
         .route("/", get(handle_index))
         .with_state(AppState {
             client,
@@ -85,20 +85,10 @@ async fn handle_index() -> Redirect {
     Redirect::temporary("/stops.png")
 }
 
-fn render_target(maybe_user_agent: Option<TypedHeader<UserAgent>>) -> RenderTarget {
-    if maybe_user_agent.is_some() {
-        RenderTarget::Other
-    } else {
-        RenderTarget::Kindle
-    }
-}
-
-async fn handle_stops_png(
-    State(state): State<AppState>,
-    maybe_user_agent: Option<TypedHeader<UserAgent>>,
+async fn generic_png_handler(
+    render_target: RenderTarget,
+    state: AppState,
 ) -> Result<Response<Full<Bytes>>, ErrorPng> {
-    let render_target = render_target(maybe_user_agent);
-
     let stop_data = state
         .client
         .load_stop_data(state.config_file.clone())
@@ -115,4 +105,16 @@ async fn handle_stops_png(
         .header("Content-Type", "image/png")
         .body(Full::new(Bytes::from(data)))
         .unwrap())
+}
+
+async fn handle_stops_browser_png(
+    State(state): State<AppState>,
+) -> Result<Response<Full<Bytes>>, ErrorPng> {
+    generic_png_handler(RenderTarget::Browser, state).await
+}
+
+async fn handle_stops_png(
+    State(state): State<AppState>,
+) -> Result<Response<Full<Bytes>>, ErrorPng> {
+    generic_png_handler(RenderTarget::Kindle, state).await
 }
