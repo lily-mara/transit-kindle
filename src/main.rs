@@ -197,12 +197,7 @@ async fn main() -> Result<()> {
 
             let line_name_bounds = line_name_blob.bounds();
 
-            let line_name_oval = Rect::new(
-                x as f32 + line_name_bounds.left + 5.0,
-                *y as f32 + line_name_bounds.top,
-                x as f32 + line_name_bounds.width() - 28.0,
-                *y as f32 + line_name_bounds.height() - 18.0,
-            );
+            let line_name_oval = line_name_bounds.with_offset((x, *y));
 
             debug!(line_name=&line.line, bounds=?line_name_oval, "calculating line name bounds");
 
