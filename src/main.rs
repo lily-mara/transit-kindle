@@ -27,6 +27,10 @@ async fn main() -> Result<()> {
 
     let config_file = serde_yaml::from_reader::<_, ConfigFile>(std::fs::File::open("stops.yml")?)?;
 
+    if std::env::var("TEST_CONFIG").is_ok() {
+        return Ok(());
+    }
+
     let client = Client::new(
         config_file.api_key.clone(),
         config_file.destination_subs.clone(),

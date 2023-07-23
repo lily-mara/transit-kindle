@@ -2,7 +2,7 @@
 Description=HTTP server that shows transit status
 
 [Service]
-ExecStart=/opt/transit-kindle/target/release/transit-kindle
+ExecStart=/usr/bin/transit-kindle
 WorkingDirectory=/opt/transit-kindle/
 Environment=RUST_LOG=info,tower_http=debug
 Restart=always
