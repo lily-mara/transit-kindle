@@ -197,10 +197,13 @@ async fn main() -> Result<()> {
 
             let line_name_bounds = line_name_blob.bounds();
 
-            let line_name_oval = Rect::new(
-                x as f32 + line_name_bounds.left + 5.0,
+            let real_left = line_name_bounds.left.min(line_name_bounds.right);
+            let real_right = line_name_bounds.left.max(line_name_bounds.right);
+
+            let line_name_oval: Rect = Rect::new(
+                x as f32 + real_left + 5.0,
                 *y as f32 + line_name_bounds.top,
-                x as f32 + line_name_bounds.width() - 28.0,
+                x as f32 + (real_right - real_left) - 28.0,
                 *y as f32 + line_name_bounds.height() - 18.0,
             );
 
