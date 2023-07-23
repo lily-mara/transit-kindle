@@ -181,10 +181,10 @@ pub fn error_png(config_file: &ConfigFile, error: eyre::Report) -> Result<Vec<u8
         .ok_or(eyre!("failed to construct skia typeface"))?;
 
     let big_font = Font::new(&typeface, 36.0);
-    let small_font = Font::new(typeface, 10.0);
+    let small_font: skia_safe::Handle<_> = Font::new(typeface, 12.0);
 
-    let failure_blob = TextBlob::new("FAILED TO RENDER", &big_font)
-        .ok_or(eyre!("failed to construct skia text blob"))?;
+    let failure_blob =
+        TextBlob::new("ERROR", &big_font).ok_or(eyre!("failed to construct skia text blob"))?;
 
     let data = render_ctx(config_file, move |canvas| {
         canvas.draw_text_blob(failure_blob, (100, 200), &black_paint);
