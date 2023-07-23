@@ -1,9 +1,17 @@
+use axum::{
+    body::{Bytes, Full},
+    extract::State,
+    http::StatusCode,
+    response::Response,
+    routing::get,
+    Router,
+};
 use std::{
     collections::{BTreeMap, HashMap},
     hash::Hash,
     sync::Arc,
 };
-use tracing::{debug, warn};
+use tracing::{debug, info, warn};
 
 use chrono::{DateTime, Duration, Utc};
 use eyre::{bail, eyre, Context, Result};
@@ -59,9 +67,15 @@ struct Upcoming {
     time: DateTime<Utc>,
 }
 
-struct Response {
+struct UpcomingResponse {
     agency: String,
     upcoming: BTreeMap<Line, Vec<Upcoming>>,
+}
+
+#[derive(Clone)]
+struct AppState {
+    client: Client,
+    config_file: ConfigFile,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -130,6 +144,34 @@ async fn main() -> Result<()> {
         config_file.destination_subs.clone(),
     );
 
+    let app = Router::new()
+        .route("/stops.png", get(render_page))
+        .with_state(AppState {
+            client,
+            config_file,
+        });
+
+    info!(port = 3001, "listening!");
+
+    axum::Server::bind(&"0.0.0.0:3001".parse().unwrap())
+        .serve(app.into_make_service())
+        .await
+        .unwrap();
+
+    Ok(())
+}
+
+async fn render_page(State(state): State<AppState>) -> Response<Full<Bytes>> {
+    let data = render_png(state.client, state.config_file).await.unwrap();
+
+    Response::builder()
+        .status(StatusCode::OK)
+        .header("Content-Type", "image/png")
+        .body(Full::new(Bytes::from(data)))
+        .unwrap()
+}
+
+async fn render_png(client: Client, config_file: ConfigFile) -> Result<Vec<u8>> {
     let stop_data = load_stop_data(client, config_file.clone()).await?;
 
     let mut bitmap = Bitmap::new();
@@ -246,9 +288,7 @@ async fn main() -> Result<()> {
         .encode(None, skia_safe::EncodedImageFormat::PNG, None)
         .ok_or(eyre!("failed to encode skia image"))?;
 
-    std::fs::write("image.png", &*image)?;
-
-    Ok(())
+    Ok(image.as_bytes().into())
 }
 
 async fn load_stop_data(
@@ -391,7 +431,7 @@ impl Client {
         self,
         agency: impl Into<String>,
         stops: Vec<String>,
-    ) -> Result<Response> {
+    ) -> Result<UpcomingResponse> {
         let agency = agency.into();
 
         let journeys = self.request_with_caching(&agency, &stops).await?;
@@ -435,7 +475,7 @@ impl Client {
             }
         }
 
-        Ok(Response { agency, upcoming })
+        Ok(UpcomingResponse { agency, upcoming })
     }
 }
 
