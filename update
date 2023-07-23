@@ -5,6 +5,7 @@ set -e
 git pull
 cargo build --release
 TEST_CONFIG=1 ./target/release/transit-kindle
-sudo cp target/release/transit-kindle /usr/bin/
 sudo systemctl daemon-reload
-sudo systemctl restart transit-kindle
+sudo systemctl stop transit-kindle
+sudo cp target/release/transit-kindle /usr/bin/
+sudo systemctl start transit-kindle
