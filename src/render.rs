@@ -74,7 +74,7 @@ pub fn stops_png(
     let black_paint = Paint::new(Color4f::new(0.0, 0.0, 0.0, 1.0), None);
     let grey_paint = Paint::new(Color4f::new(0.8, 0.8, 0.8, 1.0), None);
 
-    let typeface = Typeface::new("arial", FontStyle::normal())
+    let typeface = Typeface::new("arial", FontStyle::bold())
         .ok_or(eyre!("failed to construct skia typeface"))?;
 
     let font = Font::new(typeface, 18.0);
