@@ -1,0 +1,13 @@
+[Unit]
+Description=HTTP server that shows transit status
+
+[Service]
+ExecStart=/opt/transit-kindle/release/transit-kindle
+WorkingDirectory=/opt/transit-kindle/
+Environment=RUST_LOG=info,tower_http=debug
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+Requires=network-online.target
