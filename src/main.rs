@@ -11,6 +11,8 @@ use std::{
     hash::Hash,
     sync::Arc,
 };
+use tower::ServiceBuilder;
+use tower_http::trace::TraceLayer;
 use tracing::{debug, info, warn};
 
 use chrono::{DateTime, Duration, Utc};
@@ -162,7 +164,8 @@ async fn main() -> Result<()> {
         .with_state(AppState {
             client,
             config_file,
-        });
+        })
+        .layer(ServiceBuilder::new().layer(TraceLayer::new_for_http()));
 
     info!(port = 3001, "listening!");
 
