@@ -1,5 +1,6 @@
 [Unit]
 Description=HTTP server that shows transit status
+Requires=network-online.target
 
 [Service]
 ExecStart=/usr/bin/transit-kindle
@@ -10,4 +11,3 @@ RestartSec=10
 
 [Install]
 WantedBy=multi-user.target
-Requires=network-online.target
