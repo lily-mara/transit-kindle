@@ -161,75 +161,79 @@ async fn main() -> Result<()> {
 
     let font = Font::new(typeface, 18.0);
 
-    let mut draw_data =
-        |section: &SectionConfig, (x1, x2): (i32, i32), y: &mut i32| -> Result<()> {
-            let agency = match stop_data.get(&section.agency) {
-                Some(x) => x,
-                None => {
-                    warn!(agency = &section.agency, "missing data for expected agency");
-                    return Ok(());
-                }
-            };
-
-            let lines = match agency.get(&section.direction) {
-                Some(x) => x,
-                None => {
-                    warn!(
-                        agency = &section.agency,
-                        direction = &section.direction,
-                        "missing data for expected direction within agency"
-                    );
-                    return Ok(());
-                }
-            };
-
-            if x1 > 0 {
-                canvas.draw_line((x1, 0), (x1, config_file.layout.height), &black_paint);
+    let mut draw_data = |section: &SectionConfig,
+                         (x1, x2): (i32, i32),
+                         y: &mut i32|
+     -> Result<()> {
+        let agency = match stop_data.get(&section.agency) {
+            Some(x) => x,
+            None => {
+                warn!(agency = &section.agency, "missing data for expected agency");
+                return Ok(());
             }
-
-            for (line, upcoming) in lines {
-                let x = x1 + 20;
-
-                let line_name_blob = TextBlob::new(&line.line, &font)
-                    .ok_or(eyre!("failed to construct skia text blob"))?;
-
-                let line_name_bounds = line_name_blob.bounds();
-
-                let line_name_oval = Rect::new(
-                    x as f32 + line_name_bounds.left + 5.0,
-                    *y as f32 + line_name_bounds.top,
-                    x as f32 + line_name_bounds.width() - 28.0,
-                    *y as f32 + line_name_bounds.height() - 18.0,
-                );
-
-                canvas.draw_oval(line_name_oval, &grey_paint);
-                canvas.draw_text_blob(&line_name_blob, (x, *y), &black_paint);
-
-                let destination_blob = TextBlob::new(&line.destination, &font)
-                    .ok_or(eyre!("failed to construct skia text blob"))?;
-                canvas.draw_text_blob(
-                    destination_blob,
-                    ((x + line_name_bounds.width() as i32 - 20), *y),
-                    &black_paint,
-                );
-
-                let mins = upcoming.into_iter().map(|t| t.minutes()).join(", ");
-                let time_text = format!("{mins} mins");
-
-                let time_blob = TextBlob::new(time_text, &font)
-                    .ok_or(eyre!("failed to construct skia text blob"))?;
-
-                let x = x2 - time_blob.bounds().width() as i32;
-                canvas.draw_text_blob(time_blob, (x, *y), &black_paint);
-
-                *y += 40;
-            }
-
-            canvas.draw_line((x1, *y), (x2, *y), &black_paint);
-            *y += 28;
-
-            Ok(())
         };
+
+        let lines = match agency.get(&section.direction) {
+            Some(x) => x,
+            None => {
+                warn!(
+                    agency = &section.agency,
+                    direction = &section.direction,
+                    "missing data for expected direction within agency"
+                );
+                return Ok(());
+            }
+        };
+
+        if x1 > 0 {
+            canvas.draw_line((x1, 0), (x1, config_file.layout.height), &black_paint);
+        }
+
+        for (line, upcoming) in lines {
+            let x = x1 + 20;
+
+            let line_name_blob = TextBlob::new(&line.line, &font)
+                .ok_or(eyre!("failed to construct skia text blob"))?;
+
+            let line_name_bounds = line_name_blob.bounds();
+
+            let line_name_oval = Rect::new(
+                x as f32 + line_name_bounds.left + 5.0,
+                *y as f32 + line_name_bounds.top,
+                x as f32 + line_name_bounds.width() - 28.0,
+                *y as f32 + line_name_bounds.height() - 18.0,
+            );
+
+            debug!(line_name=&line.line, bounds=?line_name_oval, "calculating line name bounds");
+
+            canvas.draw_oval(line_name_oval, &grey_paint);
+            canvas.draw_text_blob(&line_name_blob, (x, *y), &black_paint);
+
+            let destination_blob = TextBlob::new(&line.destination, &font)
+                .ok_or(eyre!("failed to construct skia text blob"))?;
+            canvas.draw_text_blob(
+                destination_blob,
+                ((x + line_name_bounds.width() as i32 - 20), *y),
+                &black_paint,
+            );
+
+            let mins = upcoming.into_iter().map(|t| t.minutes()).join(", ");
+            let time_text = format!("{mins} mins");
+
+            let time_blob = TextBlob::new(time_text, &font)
+                .ok_or(eyre!("failed to construct skia text blob"))?;
+
+            let x = x2 - time_blob.bounds().width() as i32;
+            canvas.draw_text_blob(time_blob, (x, *y), &black_paint);
+
+            *y += 40;
+        }
+
+        canvas.draw_line((x1, *y), (x2, *y), &black_paint);
+        *y += 28;
+
+        Ok(())
+    };
 
     let halfway = config_file.layout.width / 2;
 
