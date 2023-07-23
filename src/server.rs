@@ -6,7 +6,7 @@ use axum::{
     routing::get,
     Router,
 };
-use eyre::{bail, Context};
+use eyre::Context;
 use tower::ServiceBuilder;
 use tower_http::trace::TraceLayer;
 use tracing::info;
@@ -72,17 +72,9 @@ async fn handle_index() -> Redirect {
     Redirect::temporary("/stops.png")
 }
 
-fn will_fail() -> eyre::Result<()> {
-    bail!("ooooops")
-}
-
 async fn handle_stops_png(
     State(state): State<AppState>,
 ) -> Result<Response<Full<Bytes>>, ErrorPng> {
-    will_fail()
-        .wrap_err("thing")
-        .wrap_err_png(&state.config_file)?;
-
     let stop_data = state
         .client
         .load_stop_data(state.config_file.clone())
