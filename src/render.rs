@@ -11,7 +11,14 @@ use skia_safe::{
 };
 use tracing::warn;
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum RenderTarget {
+    Kindle,
+    Other,
+}
+
 fn render_ctx(
+    render_target: RenderTarget,
     config_file: &ConfigFile,
     closure: impl FnOnce(&mut Canvas) -> Result<()>,
 ) -> Result<Vec<u8>> {
@@ -38,36 +45,42 @@ fn render_ctx(
 
     let image = bitmap.as_image();
 
-    let mut rotated_bitmap = Bitmap::new();
-    if !rotated_bitmap.set_info(
-        &ImageInfo::new(
-            (config_file.layout.height, config_file.layout.width),
-            skia_safe::ColorType::Gray8,
-            skia_safe::AlphaType::Unknown,
+    let final_image = if render_target == RenderTarget::Kindle {
+        let mut rotated_bitmap = Bitmap::new();
+        if !rotated_bitmap.set_info(
+            &ImageInfo::new(
+                (config_file.layout.height, config_file.layout.width),
+                skia_safe::ColorType::Gray8,
+                skia_safe::AlphaType::Unknown,
+                None,
+            ),
             None,
-        ),
-        None,
-    ) {
-        bail!("failed to initialize skia bitmap");
-    }
-    rotated_bitmap.alloc_pixels();
+        ) {
+            bail!("failed to initialize skia bitmap");
+        }
+        rotated_bitmap.alloc_pixels();
 
-    let mut rotated_canvas = Canvas::from_bitmap(&rotated_bitmap, None)
-        .ok_or(eyre!("failed to construct skia canvas"))?;
+        let mut rotated_canvas = Canvas::from_bitmap(&rotated_bitmap, None)
+            .ok_or(eyre!("failed to construct skia canvas"))?;
 
-    rotated_canvas.translate(Point::new(config_file.layout.height as f32, 0.0));
-    rotated_canvas.rotate(90.0, Some(Point::new(0.0, 0.0)));
-    rotated_canvas.draw_image(image, (0, 0), None);
+        rotated_canvas.translate(Point::new(config_file.layout.height as f32, 0.0));
+        rotated_canvas.rotate(90.0, Some(Point::new(0.0, 0.0)));
+        rotated_canvas.draw_image(image, (0, 0), None);
 
-    let rotated_image_data = rotated_bitmap
-        .as_image()
+        rotated_bitmap.as_image()
+    } else {
+        image
+    };
+
+    let image_data = final_image
         .encode(None, skia_safe::EncodedImageFormat::PNG, None)
         .ok_or(eyre!("failed to encode skia image"))?;
 
-    Ok(rotated_image_data.as_bytes().into())
+    Ok(image_data.as_bytes().into())
 }
 
 pub fn stops_png(
+    render_target: RenderTarget,
     stop_data: HashMap<String, HashMap<String, Vec<(Line, Vec<Upcoming>)>>>,
     config_file: &ConfigFile,
 ) -> Result<Vec<u8>> {
@@ -157,7 +170,7 @@ pub fn stops_png(
 
     let halfway = config_file.layout.width / 2;
 
-    let image_data = render_ctx(config_file, |canvas| {
+    let image_data = render_ctx(render_target, config_file, |canvas| {
         let mut y = 38;
         for section in &config_file.layout.left.sections {
             draw_data(canvas, section, (0, halfway), &mut y)?;
@@ -174,7 +187,11 @@ pub fn stops_png(
     Ok(image_data)
 }
 
-pub fn error_png(config_file: &ConfigFile, error: eyre::Report) -> Result<Vec<u8>> {
+pub fn error_png(
+    render_target: RenderTarget,
+    config_file: &ConfigFile,
+    error: eyre::Report,
+) -> Result<Vec<u8>> {
     let black_paint = Paint::new(Color4f::new(0.0, 0.0, 0.0, 1.0), None);
 
     let typeface = Typeface::new("arial", FontStyle::normal())
@@ -186,7 +203,7 @@ pub fn error_png(config_file: &ConfigFile, error: eyre::Report) -> Result<Vec<u8
     let failure_blob =
         TextBlob::new("ERROR", &big_font).ok_or(eyre!("failed to construct skia text blob"))?;
 
-    let data = render_ctx(config_file, move |canvas| {
+    let data = render_ctx(render_target, config_file, move |canvas| {
         canvas.draw_text_blob(failure_blob, (100, 200), &black_paint);
         let mut y = 250;
         for e in error.chain() {

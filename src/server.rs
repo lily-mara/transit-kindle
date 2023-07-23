@@ -1,17 +1,22 @@
 use axum::{
     body::{Bytes, Full},
     extract::State,
+    headers::UserAgent,
     http::StatusCode,
     response::{IntoResponse, Redirect, Response},
     routing::get,
-    Router,
+    Router, TypedHeader,
 };
 use eyre::Context;
 use tower::ServiceBuilder;
 use tower_http::trace::TraceLayer;
 use tracing::info;
 
-use crate::{api_client::Client, config::ConfigFile, render};
+use crate::{
+    api_client::Client,
+    config::ConfigFile,
+    render::{self, RenderTarget},
+};
 
 #[derive(Clone)]
 struct AppState {
@@ -24,15 +29,23 @@ struct ErrorPng {
 }
 
 trait WrapErrPng<T> {
-    fn wrap_err_png(self, config_file: &ConfigFile) -> Result<T, ErrorPng>;
+    fn wrap_err_png(
+        self,
+        render_target: RenderTarget,
+        config_file: &ConfigFile,
+    ) -> Result<T, ErrorPng>;
 }
 
 impl<T> WrapErrPng<T> for eyre::Result<T> {
-    fn wrap_err_png(self, config_file: &ConfigFile) -> Result<T, ErrorPng> {
+    fn wrap_err_png(
+        self,
+        render_target: RenderTarget,
+        config_file: &ConfigFile,
+    ) -> Result<T, ErrorPng> {
         match self {
             Ok(x) => Ok(x),
             Err(error) => Err(ErrorPng {
-                data: render::error_png(config_file, error).unwrap(),
+                data: render::error_png(render_target, config_file, error).unwrap(),
             }),
         }
     }
@@ -72,19 +85,30 @@ async fn handle_index() -> Redirect {
     Redirect::temporary("/stops.png")
 }
 
+fn render_target(maybe_user_agent: Option<TypedHeader<UserAgent>>) -> RenderTarget {
+    if maybe_user_agent.is_some() {
+        RenderTarget::Other
+    } else {
+        RenderTarget::Kindle
+    }
+}
+
 async fn handle_stops_png(
     State(state): State<AppState>,
+    maybe_user_agent: Option<TypedHeader<UserAgent>>,
 ) -> Result<Response<Full<Bytes>>, ErrorPng> {
+    let render_target = render_target(maybe_user_agent);
+
     let stop_data = state
         .client
         .load_stop_data(state.config_file.clone())
         .await
         .wrap_err("load stop data")
-        .wrap_err_png(&state.config_file)?;
+        .wrap_err_png(render_target, &state.config_file)?;
 
-    let data = render::stops_png(stop_data, &state.config_file)
+    let data = render::stops_png(render_target, stop_data, &state.config_file)
         .wrap_err("render schedule")
-        .wrap_err_png(&state.config_file)?;
+        .wrap_err_png(render_target, &state.config_file)?;
 
     Ok(Response::builder()
         .status(StatusCode::OK)
