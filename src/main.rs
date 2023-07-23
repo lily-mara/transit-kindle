@@ -136,6 +136,8 @@ struct SectionConfig {
 #[derive(Deserialize, Clone)]
 struct StopConfig {
     agency: String,
+    #[serde(default)]
+    line_prefix_subs: HashMap<String, String>,
     stops: Vec<String>,
 }
 
@@ -393,7 +395,7 @@ async fn load_stop_data(
         let client = client.clone();
         joinset.spawn(async move {
             client
-                .load_upcoming(agency.agency.clone(), agency.stops)
+                .load_upcoming(agency.clone())
                 .await
                 .wrap_err_with(|| format!("loading data for agency {}", agency.agency))
         });
@@ -520,12 +522,9 @@ impl Client {
         Ok(journeys)
     }
 
-    async fn load_upcoming(
-        self,
-        agency: impl Into<String>,
-        stops: Vec<String>,
-    ) -> Result<UpcomingResponse> {
-        let agency = agency.into();
+    async fn load_upcoming(self, stop_config: StopConfig) -> Result<UpcomingResponse> {
+        let agency = stop_config.agency;
+        let stops = stop_config.stops;
 
         let journeys = self.request_with_caching(&agency, &stops).await?;
 
@@ -548,9 +547,17 @@ impl Client {
                 .unwrap_or(&journey.destination_name)
                 .clone();
 
+            let mut line = line.clone();
+            for (prefix, replacement) in &stop_config.line_prefix_subs {
+                if line.starts_with(prefix) {
+                    line = replacement.clone();
+                    break;
+                }
+            }
+
             upcoming
                 .entry(Line {
-                    line: line.clone(),
+                    line,
                     destination,
                     agency: agency.clone(),
                     direction: journey.direction_ref.clone(),
