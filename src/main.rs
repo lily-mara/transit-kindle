@@ -162,16 +162,69 @@ async fn main() -> Result<()> {
 }
 
 async fn render_page(State(state): State<AppState>) -> Response<Full<Bytes>> {
-    let data = render_png(state.client, state.config_file).await.unwrap();
+    let mut status = StatusCode::OK;
+    let data = match render_png(state.client, &state.config_file).await {
+        Ok(x) => x,
+        Err(e) => {
+            warn!(error=?e, "error rendering stop data");
+            status = StatusCode::INTERNAL_SERVER_ERROR;
+            render_err_png(&state.config_file, format!("{}", e)).unwrap()
+        }
+    };
 
     Response::builder()
-        .status(StatusCode::OK)
+        .status(status)
         .header("Content-Type", "image/png")
         .body(Full::new(Bytes::from(data)))
         .unwrap()
 }
 
-async fn render_png(client: Client, config_file: ConfigFile) -> Result<Vec<u8>> {
+fn render_err_png(config_file: &ConfigFile, error: String) -> Result<Vec<u8>> {
+    let mut bitmap = Bitmap::new();
+    if !bitmap.set_info(
+        &ImageInfo::new(
+            (config_file.layout.width, config_file.layout.height),
+            skia_safe::ColorType::Gray8,
+            skia_safe::AlphaType::Unknown,
+            None,
+        ),
+        None,
+    ) {
+        bail!("failed to initialize skia bitmap");
+    }
+    bitmap.alloc_pixels();
+
+    let mut canvas =
+        Canvas::from_bitmap(&bitmap, None).ok_or(eyre!("failed to construct skia canvas"))?;
+
+    canvas.clear(Color4f::new(1.0, 1.0, 1.0, 1.0));
+
+    let black_paint = Paint::new(Color4f::new(0.0, 0.0, 0.0, 1.0), None);
+
+    let typeface = Typeface::new("arial", FontStyle::normal())
+        .ok_or(eyre!("failed to construct skia typeface"))?;
+
+    let font = Font::new(typeface, 36.0);
+
+    let error_blob = TextBlob::new("FAILED TO RENDER", &font)
+        .ok_or(eyre!("failed to construct skia text blob"))?;
+
+    canvas.draw_text_blob(error_blob, (100, 200), &black_paint);
+
+    let error_blob =
+        TextBlob::new(error, &font).ok_or(eyre!("failed to construct skia text blob"))?;
+
+    canvas.draw_text_blob(error_blob, (100, 250), &black_paint);
+
+    let image = bitmap
+        .as_image()
+        .encode(None, skia_safe::EncodedImageFormat::PNG, None)
+        .ok_or(eyre!("failed to encode skia image"))?;
+
+    Ok(image.as_bytes().into())
+}
+
+async fn render_png(client: Client, config_file: &ConfigFile) -> Result<Vec<u8>> {
     let stop_data = load_stop_data(client, config_file.clone()).await?;
 
     let mut bitmap = Bitmap::new();
@@ -201,75 +254,71 @@ async fn render_png(client: Client, config_file: ConfigFile) -> Result<Vec<u8>> 
 
     let font = Font::new(typeface, 18.0);
 
-    let mut draw_data = |section: &SectionConfig,
-                         (x1, x2): (i32, i32),
-                         y: &mut i32|
-     -> Result<()> {
-        let agency = match stop_data.get(&section.agency) {
-            Some(x) => x,
-            None => {
-                warn!(agency = &section.agency, "missing data for expected agency");
-                return Ok(());
-            }
-        };
+    let mut draw_data =
+        |section: &SectionConfig, (x1, x2): (i32, i32), y: &mut i32| -> Result<()> {
+            let agency = match stop_data.get(&section.agency) {
+                Some(x) => x,
+                None => {
+                    warn!(agency = &section.agency, "missing data for expected agency");
+                    return Ok(());
+                }
+            };
 
-        let lines = match agency.get(&section.direction) {
-            Some(x) => x,
-            None => {
-                warn!(
-                    agency = &section.agency,
-                    direction = &section.direction,
-                    "missing data for expected direction within agency"
+            let lines = match agency.get(&section.direction) {
+                Some(x) => x,
+                None => {
+                    warn!(
+                        agency = &section.agency,
+                        direction = &section.direction,
+                        "missing data for expected direction within agency"
+                    );
+                    return Ok(());
+                }
+            };
+
+            if x1 > 0 {
+                canvas.draw_line((x1, 0), (x1, config_file.layout.height), &black_paint);
+            }
+
+            for (line, upcoming) in lines {
+                let x = x1 + 20;
+
+                let line_name_blob = TextBlob::new(&line.line, &font)
+                    .ok_or(eyre!("failed to construct skia text blob"))?;
+
+                let line_name_bounds = line_name_blob.bounds();
+
+                let line_name_oval = line_name_bounds.with_offset((x, *y));
+
+                canvas.draw_oval(line_name_oval, &grey_paint);
+
+                canvas.draw_text_blob(&line_name_blob, (x, *y), &black_paint);
+
+                let destination_blob = TextBlob::new(&line.destination, &font)
+                    .ok_or(eyre!("failed to construct skia text blob"))?;
+                canvas.draw_text_blob(
+                    destination_blob,
+                    ((x + line_name_bounds.width() as i32), *y),
+                    &black_paint,
                 );
-                return Ok(());
+
+                let mins = upcoming.into_iter().map(|t| t.minutes()).join(", ");
+                let time_text = format!("{mins} mins");
+
+                let time_blob = TextBlob::new(time_text, &font)
+                    .ok_or(eyre!("failed to construct skia text blob"))?;
+
+                let x = x2 - time_blob.bounds().width() as i32;
+                canvas.draw_text_blob(time_blob, (x, *y), &black_paint);
+
+                *y += 40;
             }
+
+            canvas.draw_line((x1, *y), (x2, *y), &black_paint);
+            *y += 28;
+
+            Ok(())
         };
-
-        if x1 > 0 {
-            canvas.draw_line((x1, 0), (x1, config_file.layout.height), &black_paint);
-        }
-
-        for (line, upcoming) in lines {
-            let x = x1 + 20;
-
-            let line_name_blob = TextBlob::new(&line.line, &font)
-                .ok_or(eyre!("failed to construct skia text blob"))?;
-
-            let line_name_bounds = line_name_blob.bounds();
-
-            let line_name_oval = line_name_bounds.with_offset((x, *y));
-
-            debug!(line_name=&line.line, bounds=?line_name_oval, "calculating line name bounds");
-
-            canvas.draw_oval(line_name_oval, &grey_paint);
-
-            canvas.draw_text_blob(&line_name_blob, (x, *y), &black_paint);
-
-            let destination_blob = TextBlob::new(&line.destination, &font)
-                .ok_or(eyre!("failed to construct skia text blob"))?;
-            canvas.draw_text_blob(
-                destination_blob,
-                ((x + line_name_bounds.width() as i32), *y),
-                &black_paint,
-            );
-
-            let mins = upcoming.into_iter().map(|t| t.minutes()).join(", ");
-            let time_text = format!("{mins} mins");
-
-            let time_blob = TextBlob::new(time_text, &font)
-                .ok_or(eyre!("failed to construct skia text blob"))?;
-
-            let x = x2 - time_blob.bounds().width() as i32;
-            canvas.draw_text_blob(time_blob, (x, *y), &black_paint);
-
-            *y += 40;
-        }
-
-        canvas.draw_line((x1, *y), (x2, *y), &black_paint);
-        *y += 28;
-
-        Ok(())
-    };
 
     let halfway = config_file.layout.width / 2;
 
@@ -395,7 +444,8 @@ impl Client {
 
         let url_path2 = url_path.clone();
 
-        let json = serde_json::from_str::<StopMonitoringResponse>(stripped_response)?;
+        let jd = &mut serde_json::Deserializer::from_str(stripped_response);
+        let json: StopMonitoringResponse = serde_path_to_error::deserialize(jd)?;
 
         let journeys = json
             .service_delivery
