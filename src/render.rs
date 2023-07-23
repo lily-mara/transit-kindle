@@ -174,23 +174,27 @@ pub fn stops_png(
     Ok(image_data)
 }
 
-pub fn error_png(config_file: &ConfigFile, error: String) -> Result<Vec<u8>> {
+pub fn error_png(config_file: &ConfigFile, error: eyre::Report) -> Result<Vec<u8>> {
     let black_paint = Paint::new(Color4f::new(0.0, 0.0, 0.0, 1.0), None);
 
     let typeface = Typeface::new("arial", FontStyle::normal())
         .ok_or(eyre!("failed to construct skia typeface"))?;
 
-    let font = Font::new(typeface, 36.0);
+    let big_font = Font::new(&typeface, 36.0);
+    let small_font = Font::new(typeface, 10.0);
 
-    let failure_blob = TextBlob::new("FAILED TO RENDER", &font)
+    let failure_blob = TextBlob::new("FAILED TO RENDER", &big_font)
         .ok_or(eyre!("failed to construct skia text blob"))?;
-
-    let error_blob =
-        TextBlob::new(error, &font).ok_or(eyre!("failed to construct skia text blob"))?;
 
     let data = render_ctx(config_file, move |canvas| {
         canvas.draw_text_blob(failure_blob, (100, 200), &black_paint);
-        canvas.draw_text_blob(error_blob, (100, 250), &black_paint);
+        let mut y = 250;
+        for e in error.chain() {
+            let error_blob = TextBlob::new(format!("{e}"), &small_font)
+                .ok_or(eyre!("failed to construct skia text blob"))?;
+            canvas.draw_text_blob(error_blob, (100, y), &black_paint);
+            y += 20;
+        }
         Ok(())
     })?;
 

@@ -21,7 +21,6 @@ struct AppState {
 pub async fn serve(client: Client, config_file: ConfigFile) -> eyre::Result<()> {
     let app = Router::new()
         .route("/stops.png", get(handle_stops_png))
-        .route("/error.png", get(handle_error_png))
         .route("/", get(handle_index))
         .with_state(AppState {
             client,
@@ -43,7 +42,7 @@ macro_rules! try_png {
         match $result {
             Ok(x) => x,
             Err(e) => {
-                let data = render::error_png($config_file, format!("{e}")).unwrap();
+                let data = render::error_png($config_file, e).unwrap();
                 return Response::builder()
                     .status(StatusCode::INTERNAL_SERVER_ERROR)
                     .header("Content-Type", "image/png")
@@ -68,16 +67,6 @@ async fn handle_stops_png(State(state): State<AppState>) -> Response<Full<Bytes>
         render::stops_png(stop_data, &state.config_file),
         &state.config_file
     );
-
-    Response::builder()
-        .status(StatusCode::OK)
-        .header("Content-Type", "image/png")
-        .body(Full::new(Bytes::from(data)))
-        .unwrap()
-}
-
-async fn handle_error_png(State(state): State<AppState>) -> Response<Full<Bytes>> {
-    let data = render::error_png(&state.config_file, format!("idk")).unwrap();
 
     Response::builder()
         .status(StatusCode::OK)

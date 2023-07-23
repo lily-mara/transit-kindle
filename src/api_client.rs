@@ -39,9 +39,8 @@ struct MonitoredStopVisit {
 #[serde(rename_all = "PascalCase")]
 struct MonitoredVehicleJourney {
     line_ref: Option<String>,
-    direction_ref: String,
-    // operator_ref: String,
-    destination_name: String,
+    direction_ref: Option<String>,
+    destination_name: Option<String>,
     monitored_call: MonitoredCall,
 }
 
@@ -230,6 +229,8 @@ impl Client {
         for journey in journeys {
             let expected_arrival_time = opt_cont!(&journey.monitored_call.expected_arrival_time);
             let line = opt_cont!(&journey.line_ref);
+            let direction = opt_cont!(&journey.direction_ref);
+            let destination = opt_cont!(&journey.destination_name);
 
             let time = expected_arrival_time.parse::<DateTime<Utc>>()?;
 
@@ -239,9 +240,9 @@ impl Client {
 
             let destination = self
                 .destination_subs
-                .get(&*journey.destination_name)
+                .get(destination)
                 .map(|d| d)
-                .unwrap_or(&journey.destination_name)
+                .unwrap_or(destination)
                 .clone();
 
             let mut line = line.clone();
@@ -257,7 +258,7 @@ impl Client {
                     line,
                     destination,
                     agency: agency.clone(),
-                    direction: journey.direction_ref.clone(),
+                    direction: direction.clone(),
                 })
                 .or_default()
                 .push(Upcoming { time })
