@@ -77,7 +77,7 @@ pub fn stops_png(
     let typeface = Typeface::new("arial", FontStyle::bold())
         .ok_or(eyre!("failed to construct skia typeface"))?;
 
-    let font = Font::new(typeface, 18.0);
+    let font = Font::new(typeface, 24.0);
 
     let draw_data = |canvas: &mut Canvas,
                      section: &SectionConfig,
@@ -133,7 +133,7 @@ pub fn stops_png(
             );
 
             let mins = upcoming.into_iter().map(|t| t.minutes()).join(", ");
-            let time_text = format!("{mins} mins");
+            let time_text = format!("{mins} min");
 
             let time_blob = TextBlob::new(time_text, &font)
                 .ok_or(eyre!("failed to construct skia text blob"))?;
