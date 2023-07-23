@@ -23,6 +23,16 @@ use skia_safe::{
 use tokio::task::JoinSet;
 use tracing_subscriber::EnvFilter;
 
+/// unwrap an option, `continue` if it's None
+macro_rules! opt_cont {
+    ($opt:expr) => {
+        match $opt {
+            Some(x) => x,
+            None => continue,
+        }
+    };
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "PascalCase")]
 struct StopMonitoringResponse {
@@ -50,7 +60,7 @@ struct MonitoredStopVisit {
 #[derive(Deserialize, Serialize, Clone)]
 #[serde(rename_all = "PascalCase")]
 struct MonitoredVehicleJourney {
-    line_ref: String,
+    line_ref: Option<String>,
     direction_ref: String,
     // operator_ref: String,
     destination_name: String,
@@ -519,10 +529,8 @@ impl Client {
         let mut upcoming = BTreeMap::<_, Vec<_>>::new();
 
         for journey in journeys {
-            let expected_arrival_time = match &journey.monitored_call.expected_arrival_time {
-                Some(x) => x,
-                None => continue,
-            };
+            let expected_arrival_time = opt_cont!(&journey.monitored_call.expected_arrival_time);
+            let line = opt_cont!(&journey.line_ref);
 
             let time = expected_arrival_time.parse::<DateTime<Utc>>()?;
 
@@ -539,7 +547,7 @@ impl Client {
 
             upcoming
                 .entry(Line {
-                    line: journey.line_ref.clone(),
+                    line: line.clone(),
                     destination,
                     agency: agency.clone(),
                     direction: journey.direction_ref.clone(),
