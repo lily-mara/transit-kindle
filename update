@@ -1,0 +1,6 @@
+#!/bin/bash
+
+git pull
+cargo build --release
+sudo systemctl daemon-reload
+sudo systemctl restart transit-kindle
