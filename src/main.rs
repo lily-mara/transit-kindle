@@ -230,7 +230,7 @@ async fn main() -> Result<()> {
                 .ok_or(eyre!("failed to construct skia text blob"))?;
             canvas.draw_text_blob(
                 destination_blob,
-                ((x + line_name_bounds.width() as i32 - 20), *y),
+                ((x + line_name_bounds.width() as i32), *y),
                 &black_paint,
             );
 
