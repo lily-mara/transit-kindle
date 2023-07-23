@@ -63,9 +63,9 @@ impl IntoResponse for ErrorPng {
 
 pub async fn serve(client: Client, config_file: ConfigFile) -> eyre::Result<()> {
     let app = Router::new()
-        .route("/stops.png", get(handle_stops_png))
+        .route("/kindle.png", get(handle_kindle_png))
         .route("/browser.png", get(handle_stops_browser_png))
-        .route("/", get(handle_index))
+        .route("/", get(handle_redirect_kindle))
         .with_state(AppState {
             client,
             config_file,
@@ -81,8 +81,8 @@ pub async fn serve(client: Client, config_file: ConfigFile) -> eyre::Result<()> 
     Ok(())
 }
 
-async fn handle_index() -> Redirect {
-    Redirect::temporary("/stops.png")
+async fn handle_redirect_kindle() -> Redirect {
+    Redirect::temporary("/kindle.png")
 }
 
 async fn generic_png_handler(
@@ -113,7 +113,7 @@ async fn handle_stops_browser_png(
     generic_png_handler(RenderTarget::Browser, state).await
 }
 
-async fn handle_stops_png(
+async fn handle_kindle_png(
     State(state): State<AppState>,
 ) -> Result<Response<Full<Bytes>>, ErrorPng> {
     generic_png_handler(RenderTarget::Kindle, state).await
