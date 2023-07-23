@@ -72,7 +72,7 @@ pub fn stops_png(
     config_file: &ConfigFile,
 ) -> Result<Vec<u8>> {
     let black_paint = Paint::new(Color4f::new(0.0, 0.0, 0.0, 1.0), None);
-    let grey_paint = Paint::new(Color4f::new(0.8, 0.8, 0.8, 1.0), None);
+    let grey_paint = Paint::new(Color4f::new(0.6, 0.6, 0.6, 1.0), None);
 
     let typeface = Typeface::new("arial", FontStyle::bold())
         .ok_or(eyre!("failed to construct skia typeface"))?;
