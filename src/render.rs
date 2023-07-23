@@ -7,6 +7,7 @@ use crate::{
 use eyre::{bail, eyre, Result};
 use itertools::Itertools;
 use skia_safe::{
+    font_style::{Slant, Weight, Width},
     Bitmap, Canvas, Color4f, Font, FontStyle, ImageInfo, Paint, Point, TextBlob, Typeface,
 };
 use tracing::warn;
@@ -87,7 +88,7 @@ pub fn stops_png(
     let black_paint = Paint::new(Color4f::new(0.0, 0.0, 0.0, 1.0), None);
     let grey_paint = Paint::new(Color4f::new(0.6, 0.6, 0.6, 1.0), None);
 
-    let typeface = Typeface::new("arial", FontStyle::bold())
+    let typeface = Typeface::new("Liberation Sans", FontStyle::bold())
         .ok_or(eyre!("failed to construct skia typeface"))?;
 
     let font = Font::new(typeface, 24.0);
@@ -194,7 +195,7 @@ pub fn error_png(
 ) -> Result<Vec<u8>> {
     let black_paint = Paint::new(Color4f::new(0.0, 0.0, 0.0, 1.0), None);
 
-    let typeface = Typeface::new("arial", FontStyle::normal())
+    let typeface = Typeface::new("Liberation Sans", FontStyle::normal())
         .ok_or(eyre!("failed to construct skia typeface"))?;
 
     let big_font = Font::new(&typeface, 36.0);
