@@ -108,7 +108,9 @@ pub fn stops_png(
             canvas.draw_line((x1, 0), (x1, config_file.layout.height), &black_paint);
         }
 
-        for (line, upcoming) in lines {
+        let lines_len = lines.len();
+
+        for (idx, (line, upcoming)) in lines.into_iter().enumerate() {
             let x = x1 + 20;
 
             let line_name_blob = TextBlob::new(&line.line, &font)
@@ -139,7 +141,12 @@ pub fn stops_png(
             let x = x2 - time_blob.bounds().width() as i32;
             canvas.draw_text_blob(time_blob, (x, *y), &black_paint);
 
-            *y += 40;
+            if idx < (lines_len - 1) {
+                canvas.draw_line((x1 + 40, *y + 15), (x2 - 40, *y + 15), &grey_paint);
+                *y += 40;
+            } else {
+                *y += 15;
+            }
         }
 
         canvas.draw_line((x1, *y), (x2, *y), &black_paint);
