@@ -81,6 +81,8 @@ struct Cached {
     live_time: DateTime<Utc>,
 }
 
+pub type StopData = HashMap<String, HashMap<String, Vec<(Line, Vec<Upcoming>)>>>;
+
 impl Client {
     pub fn new(api_key: String, destination_subs: HashMap<String, String>) -> Self {
         Self {
@@ -89,10 +91,7 @@ impl Client {
         }
     }
 
-    pub async fn load_stop_data(
-        self,
-        config_file: ConfigFile,
-    ) -> Result<HashMap<String, HashMap<String, Vec<(Line, Vec<Upcoming>)>>>> {
+    pub async fn load_stop_data(self, config_file: ConfigFile) -> Result<StopData> {
         let mut joinset = JoinSet::new();
 
         for agency in config_file.stops {

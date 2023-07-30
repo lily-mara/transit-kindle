@@ -5,7 +5,7 @@ use itertools::Itertools;
 use tracing::warn;
 
 use crate::{
-    api_client::{self, Upcoming},
+    api_client::{self, StopData, Upcoming},
     config::{ConfigFile, SideConfig},
 };
 
@@ -34,23 +34,14 @@ impl Line {
     }
 }
 
-pub fn data_to_layout(
-    stop_data: HashMap<String, HashMap<String, Vec<(api_client::Line, Vec<api_client::Upcoming>)>>>,
-    config_file: &ConfigFile,
-) -> Layout {
+pub fn data_to_layout(stop_data: StopData, config_file: &ConfigFile) -> Layout {
     let left = column(&stop_data, &config_file.layout.left);
     let right = column(&stop_data, &config_file.layout.right);
 
     Layout { left, right }
 }
 
-fn column(
-    stop_data: &HashMap<
-        String,
-        HashMap<String, Vec<(api_client::Line, Vec<api_client::Upcoming>)>>,
-    >,
-    side: &SideConfig,
-) -> Column {
+fn column(stop_data: &StopData, side: &SideConfig) -> Column {
     let mut agencies = Vec::new();
 
     for section in &side.sections {
