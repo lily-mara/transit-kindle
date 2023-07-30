@@ -14,7 +14,7 @@ macro_rules! opt_cont {
 
 mod api_client;
 mod config;
-mod render;
+mod png;
 mod server;
 
 use crate::config::*;

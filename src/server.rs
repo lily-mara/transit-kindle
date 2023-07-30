@@ -14,7 +14,7 @@ use tracing::info;
 use crate::{
     api_client::Client,
     config::ConfigFile,
-    render::{self, RenderTarget},
+    png::{self, RenderTarget},
 };
 
 #[derive(Clone)]
@@ -44,7 +44,7 @@ impl<T> WrapErrPng<T> for eyre::Result<T> {
         match self {
             Ok(x) => Ok(x),
             Err(error) => Err(ErrorPng {
-                data: render::error_png(render_target, config_file, error).unwrap(),
+                data: png::error_png(render_target, config_file, error).unwrap(),
             }),
         }
     }
@@ -96,7 +96,7 @@ async fn generic_png_handler(
         .wrap_err("load stop data")
         .wrap_err_png(render_target, &state.config_file)?;
 
-    let data = render::stops_png(render_target, stop_data, &state.config_file)
+    let data = png::stops_png(render_target, stop_data, &state.config_file)
         .wrap_err("render schedule")
         .wrap_err_png(render_target, &state.config_file)?;
 
