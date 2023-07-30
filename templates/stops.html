@@ -1,0 +1,75 @@
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Upcoming Transit Departures</title>
+  </head>
+  <body>
+    <div class="schedule">
+      <div class="col">
+        <div class="agencies">
+          {% for agency in layout.left.agencies %}{% include "agency.html" %}{%
+          endfor %}
+        </div>
+      </div>
+      <div class="col">
+        <div class="agencies">
+          {% for agency in layout.right.agencies %}{% include "agency.html" %}{%
+          endfor %}
+        </div>
+      </div>
+    </div>
+
+    <style type="text/css">
+      body {
+        display: flex;
+        justify-content: center;
+        font-family: sans-serif;
+        font-weight: bold;
+      }
+
+      .schedule {
+        display: grid;
+        width: 100%;
+        grid-template-columns: 50% 50%;
+        max-width: 1200px;
+      }
+
+      .schedule .col {
+        min-height: 50px;
+        margin: 20px;
+      }
+
+      .agencies {
+        display: flex;
+        gap: 2em;
+        flex-direction: column;
+      }
+
+      .agency {
+        display: flex;
+        gap: 0.5em;
+        flex-direction: column;
+        border-bottom: black solid 1px;
+      }
+
+      .departure {
+        display: flex;
+        line-height: 3em;
+        border-bottom: lightgray solid 1px;
+      }
+
+      .line-id {
+        background-color: lightgrey;
+        border-radius: 1.5em;
+        min-width: 3em;
+        justify-content: center;
+        display: flex;
+      }
+
+      .times {
+        margin-left: auto;
+      }
+    </style>
+  </body>
+</html>

@@ -2,7 +2,7 @@ use axum::{
     body::{Bytes, Full},
     extract::State,
     http::StatusCode,
-    response::{IntoResponse, Redirect, Response},
+    response::{Html, IntoResponse, Redirect, Response},
     routing::get,
     Router,
 };
@@ -14,6 +14,8 @@ use tracing::info;
 use crate::{
     api_client::Client,
     config::ConfigFile,
+    html::stops_html,
+    layout::data_to_layout,
     png::{self, RenderTarget},
 };
 
@@ -65,6 +67,7 @@ pub async fn serve(client: Client, config_file: ConfigFile) -> eyre::Result<()> 
     let app = Router::new()
         .route("/kindle.png", get(handle_kindle_png))
         .route("/browser.png", get(handle_stops_browser_png))
+        .route("/stops.html", get(handle_stops_html))
         .route("/", get(handle_redirect_kindle))
         .with_state(AppState {
             client,
@@ -96,7 +99,9 @@ async fn generic_png_handler(
         .wrap_err("load stop data")
         .wrap_err_png(render_target, &state.config_file)?;
 
-    let data = png::stops_png(render_target, stop_data, &state.config_file)
+    let layout = data_to_layout(stop_data, &state.config_file);
+
+    let data = png::stops_png(render_target, layout, &state.config_file)
         .wrap_err("render schedule")
         .wrap_err_png(render_target, &state.config_file)?;
 
@@ -105,6 +110,20 @@ async fn generic_png_handler(
         .header("Content-Type", "image/png")
         .body(Full::new(Bytes::from(data)))
         .unwrap())
+}
+
+async fn handle_stops_html(State(state): State<AppState>) -> Result<Html<String>, StatusCode> {
+    let stop_data = state
+        .client
+        .load_stop_data(state.config_file.clone())
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let layout = data_to_layout(stop_data, &state.config_file);
+
+    let html = stops_html(layout).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Html(html))
 }
 
 async fn handle_stops_browser_png(

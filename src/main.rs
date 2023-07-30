@@ -14,6 +14,8 @@ macro_rules! opt_cont {
 
 mod api_client;
 mod config;
+mod html;
+mod layout;
 mod png;
 mod server;
 
