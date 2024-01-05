@@ -7,16 +7,10 @@
   <body>
     <div class="schedule">
       <div class="col">
-        <div class="agencies">
-          {% for agency in layout.left.agencies %}{% include "agency.html" %}{%
-          endfor %}
-        </div>
+        {% for row in layout.left.rows %} {%include "row.html" %} {% endfor %}
       </div>
       <div class="col">
-        <div class="agencies">
-          {% for agency in layout.right.agencies %}{% include "agency.html" %}{%
-          endfor %}
-        </div>
+        {% for row in layout.right.rows %} {%include "row.html" %} {% endfor %}
       </div>
     </div>
 

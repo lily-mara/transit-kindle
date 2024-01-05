@@ -24,7 +24,19 @@ pub struct SideConfig {
 }
 
 #[derive(Deserialize, Clone)]
-pub struct SectionConfig {
+#[serde(untagged)]
+pub enum SectionConfig {
+    AgencySection(AgencySectionConfig),
+    TextSection(TextSectionConfig),
+}
+
+#[derive(Deserialize, Clone)]
+pub struct TextSectionConfig {
+    pub text: String,
+}
+
+#[derive(Deserialize, Clone)]
+pub struct AgencySectionConfig {
     pub agency: String,
     pub direction: String,
 }

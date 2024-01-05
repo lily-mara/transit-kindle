@@ -1,10 +1,12 @@
 use crate::{
     config::ConfigFile,
-    layout::{Agency, Layout},
+    layout::{Agency, Layout, Row},
 };
+use chrono::prelude::*;
 use eyre::{bail, eyre, Result};
 use skia_safe::{
-    Bitmap, Canvas, Color4f, Font, FontStyle, ImageInfo, Paint, Point, TextBlob, Typeface,
+    utils::text_utils::Align, Bitmap, Canvas, Color4f, Font, FontStyle, ImageInfo, Paint, Point,
+    Rect, TextBlob, Typeface,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -81,34 +83,47 @@ pub fn stops_png(
     config_file: &ConfigFile,
 ) -> Result<Vec<u8>> {
     let black_paint = Paint::new(Color4f::new(0.0, 0.0, 0.0, 1.0), None);
+    let mut black_paint_heavy = Paint::new(Color4f::new(0.0, 0.0, 0.0, 1.0), None);
+    black_paint_heavy.set_stroke_width(2.0);
+
     let grey_paint = Paint::new(Color4f::new(0.7, 0.7, 0.7, 1.0), None);
+    let light_grey_paint = Paint::new(Color4f::new(0.8, 0.8, 0.8, 1.0), None);
 
     let typeface = Typeface::new("Liberation Sans", FontStyle::bold())
         .ok_or(eyre!("failed to construct skia typeface"))?;
 
     let font = Font::new(typeface, 24.0);
 
-    let draw_data =
+    let draw_text_in_bubble = |canvas: &mut Canvas, text: &str, x: i32, y: i32| -> Result<Rect> {
+        let blob = TextBlob::new(text, &font).ok_or(eyre!("failed to construct skia text blob"))?;
+
+        let mut bounds = *blob.bounds();
+        bounds.set_xywh(
+            bounds.x() + 1.0,
+            bounds.y(),
+            bounds.width() - 5.0,
+            bounds.height(),
+        );
+
+        let rect = bounds.with_offset((x, y));
+
+        canvas.draw_round_rect(rect, 10.0, 10.0, &grey_paint);
+
+        canvas.draw_text_blob(&blob, (x, y), &black_paint);
+
+        Ok(bounds)
+    };
+
+    let draw_agency_row =
         |canvas: &mut Canvas, agency: &Agency, (x1, x2): (i32, i32), y: &mut i32| -> Result<()> {
-            if x1 > 0 {
-                canvas.draw_line((x1, 0), (x1, config_file.layout.height), &black_paint);
-            }
+            *y += 4;
 
             let lines_len = agency.lines.len();
 
             for (idx, line) in agency.lines.iter().enumerate() {
                 let x = x1 + 20;
 
-                let line_id_blob = TextBlob::new(&line.id, &font)
-                    .ok_or(eyre!("failed to construct skia text blob"))?;
-
-                let line_id_bounds = line_id_blob.bounds();
-
-                let line_id_oval = line_id_bounds.with_offset((x, *y));
-
-                canvas.draw_round_rect(line_id_oval, 10.0, 10.0, &grey_paint);
-
-                canvas.draw_text_blob(&line_id_blob, (x, *y), &black_paint);
+                let line_id_bounds = draw_text_in_bubble(canvas, &line.id, x, *y)?;
 
                 let destination_blob = TextBlob::new(&line.destination, &font)
                     .ok_or(eyre!("failed to construct skia text blob"))?;
@@ -121,11 +136,13 @@ pub fn stops_png(
                 let mins = line.departure_minutes_str();
                 let time_text = format!("{mins} min");
 
-                let time_blob = TextBlob::new(time_text, &font)
-                    .ok_or(eyre!("failed to construct skia text blob"))?;
-
-                let x = x2 - time_blob.bounds().width() as i32;
-                canvas.draw_text_blob(time_blob, (x, *y), &black_paint);
+                canvas.draw_str_align(
+                    time_text,
+                    (x2 as f32 - 20.0, (*y) as f32),
+                    &font,
+                    &black_paint,
+                    Align::Right,
+                );
 
                 if idx < (lines_len - 1) {
                     canvas.draw_line((x1 + 40, *y + 15), (x2 - 40, *y + 15), &grey_paint);
@@ -135,8 +152,41 @@ pub fn stops_png(
                 }
             }
 
-            canvas.draw_line((x1, *y), (x2, *y), &black_paint);
+            Ok(())
+        };
+
+    let draw_text_row =
+        |canvas: &mut Canvas, text: &str, (x1, x2): (i32, i32), y: &mut i32| -> Result<()> {
+            canvas.draw_rect(
+                Rect::new(x1 as f32, *y as f32, x2 as f32, (*y + 40) as f32),
+                &light_grey_paint,
+            );
             *y += 28;
+
+            canvas.draw_str_align(
+                text,
+                ((x1 + x2) as f32 / 2.0, *y as f32),
+                &font,
+                &black_paint,
+                Align::Center,
+            );
+
+            *y += 12;
+
+            Ok(())
+        };
+
+    let draw_row =
+        |canvas: &mut Canvas, row: &Row, (x1, x2): (i32, i32), y: &mut i32| -> Result<()> {
+            if *y > 0 {
+                canvas.draw_line((x1, *y), (x2, *y), &black_paint_heavy);
+                *y += 28;
+            }
+
+            match row {
+                Row::Agency(agency) => draw_agency_row(canvas, agency, (x1, x2), y)?,
+                Row::Text(text) => draw_text_row(canvas, text, (x1, x2), y)?,
+            }
 
             Ok(())
         };
@@ -144,15 +194,50 @@ pub fn stops_png(
     let halfway = config_file.layout.width / 2;
 
     let image_data = render_ctx(render_target, config_file, |canvas| {
-        let mut y = 38;
-        for agency in &layout.left.agencies {
-            draw_data(canvas, agency, (0, halfway), &mut y)?;
+        let mut y = 0;
+        for row in &layout.left.rows {
+            draw_row(canvas, row, (0, halfway), &mut y)?;
         }
 
-        let mut y = 38;
-        for agency in &layout.right.agencies {
-            draw_data(canvas, agency, (halfway, config_file.layout.width), &mut y)?;
+        let mut y = 0;
+        for row in &layout.right.rows {
+            draw_row(canvas, row, (halfway, config_file.layout.width), &mut y)?;
         }
+
+        canvas.draw_line(
+            (halfway, 0),
+            (halfway, config_file.layout.height),
+            &black_paint_heavy,
+        );
+
+        let bottom_box_y = (config_file.layout.height - 40) as f32;
+
+        canvas.draw_line(
+            (0 as f32, bottom_box_y),
+            (config_file.layout.width as f32, bottom_box_y),
+            &black_paint_heavy,
+        );
+
+        canvas.draw_rect(
+            Rect::new(
+                0.0,
+                bottom_box_y,
+                config_file.layout.width as f32,
+                config_file.layout.height as f32,
+            ),
+            &grey_paint,
+        );
+
+        let now = Local::now();
+        let time = now.format("%a %b %d - %H:%M").to_string();
+
+        canvas.draw_str_align(
+            time,
+            (halfway as f32, (config_file.layout.height - 10) as f32),
+            &font,
+            &black_paint,
+            Align::Center,
+        );
 
         Ok(())
     })?;

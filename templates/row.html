@@ -1,0 +1,5 @@
+{% match row %} {% when crate::layout::Row::Agency with (agency) %}
+<div class="agencies">{% include "agency.html" %}</div>
+{% when crate::layout::Row::Text with (text) %}
+<h1>{{ text }}</h1>
+{% endmatch %}

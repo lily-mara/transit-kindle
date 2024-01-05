@@ -6,7 +6,7 @@ use tracing::warn;
 
 use crate::{
     api_client::{self, StopData, Upcoming},
-    config::{ConfigFile, SideConfig},
+    config::{ConfigFile, SectionConfig, SideConfig, TextSectionConfig},
 };
 
 pub struct Layout {
@@ -15,7 +15,12 @@ pub struct Layout {
 }
 
 pub struct Column {
-    pub agencies: Vec<Agency>,
+    pub rows: Vec<Row>,
+}
+
+pub enum Row {
+    Agency(Agency),
+    Text(String),
 }
 
 pub struct Agency {
@@ -42,18 +47,25 @@ pub fn data_to_layout(stop_data: StopData, config_file: &ConfigFile) -> Layout {
 }
 
 fn column(stop_data: &StopData, side: &SideConfig) -> Column {
-    let mut agencies = Vec::new();
+    let mut rows = Vec::new();
 
     for section in &side.sections {
-        match agency(stop_data, &section.agency, &section.direction) {
-            Ok(x) => agencies.push(x),
-            Err(e) => {
-                warn!(error = %e, "failed to generate agency data");
+        match section {
+            SectionConfig::AgencySection(agency_section) => {
+                match agency(stop_data, &agency_section.agency, &agency_section.direction) {
+                    Ok(x) => rows.push(Row::Agency(x)),
+                    Err(e) => {
+                        warn!(error = %e, "failed to generate agency data");
+                    }
+                }
+            }
+            SectionConfig::TextSection(TextSectionConfig { text }) => {
+                rows.push(Row::Text(text.clone()));
             }
         }
     }
 
-    Column { agencies }
+    Column { rows }
 }
 
 fn agency(
