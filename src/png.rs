@@ -193,6 +193,37 @@ pub fn stops_png(
 
     let halfway = config_file.layout.width / 2;
 
+    let draw_footer = |canvas: &mut Canvas| {
+        let bottom_box_y = (config_file.layout.height - 40) as f32;
+
+        canvas.draw_line(
+            (0 as f32, bottom_box_y),
+            (config_file.layout.width as f32, bottom_box_y),
+            &black_paint_heavy,
+        );
+
+        canvas.draw_rect(
+            Rect::new(
+                0.0,
+                bottom_box_y,
+                config_file.layout.width as f32,
+                config_file.layout.height as f32,
+            ),
+            &light_grey_paint,
+        );
+
+        let now = Local::now();
+        let time = now.format("%a %b %d - %H:%M").to_string();
+
+        canvas.draw_str_align(
+            time,
+            (halfway as f32, (config_file.layout.height - 10) as f32),
+            &font,
+            &black_paint,
+            Align::Center,
+        );
+    };
+
     let image_data = render_ctx(render_target, config_file, |canvas| {
         let mut y = 0;
         for row in &layout.left.rows {
@@ -210,34 +241,7 @@ pub fn stops_png(
             &black_paint_heavy,
         );
 
-        let bottom_box_y = (config_file.layout.height - 40) as f32;
-
-        canvas.draw_line(
-            (0 as f32, bottom_box_y),
-            (config_file.layout.width as f32, bottom_box_y),
-            &black_paint_heavy,
-        );
-
-        canvas.draw_rect(
-            Rect::new(
-                0.0,
-                bottom_box_y,
-                config_file.layout.width as f32,
-                config_file.layout.height as f32,
-            ),
-            &grey_paint,
-        );
-
-        let now = Local::now();
-        let time = now.format("%a %b %d - %H:%M").to_string();
-
-        canvas.draw_str_align(
-            time,
-            (halfway as f32, (config_file.layout.height - 10) as f32),
-            &font,
-            &black_paint,
-            Align::Center,
-        );
+        draw_footer(canvas);
 
         Ok(())
     })?;
