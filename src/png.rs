@@ -81,7 +81,7 @@ pub fn stops_png(
     config_file: &ConfigFile,
 ) -> Result<Vec<u8>> {
     let black_paint = Paint::new(Color4f::new(0.0, 0.0, 0.0, 1.0), None);
-    let grey_paint = Paint::new(Color4f::new(0.6, 0.6, 0.6, 1.0), None);
+    let grey_paint = Paint::new(Color4f::new(0.7, 0.7, 0.7, 1.0), None);
 
     let typeface = Typeface::new("Liberation Sans", FontStyle::bold())
         .ok_or(eyre!("failed to construct skia typeface"))?;
@@ -106,7 +106,7 @@ pub fn stops_png(
 
                 let line_id_oval = line_id_bounds.with_offset((x, *y));
 
-                canvas.draw_oval(line_id_oval, &grey_paint);
+                canvas.draw_round_rect(line_id_oval, 10.0, 10.0, &grey_paint);
 
                 canvas.draw_text_blob(&line_id_blob, (x, *y), &black_paint);
 
@@ -129,7 +129,7 @@ pub fn stops_png(
 
                 if idx < (lines_len - 1) {
                     canvas.draw_line((x1 + 40, *y + 15), (x2 - 40, *y + 15), &grey_paint);
-                    *y += 40;
+                    *y += 48;
                 } else {
                     *y += 15;
                 }
