@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 askama = "0.12.0"
-axum = { version = "0.6.19", features = ["headers", "macros"] }
+axum = { version = "0.7", features = ["macros"] }
 chrono = { version = "0.4.26", features = ["serde"] }
 eyre = "0.6.8"
 itertools = "0.11.0"
@@ -23,7 +23,7 @@ serde_yaml = "0.9.25"
 skia-safe = { version = "0.63.0", features = ["textlayout"] }
 tokio = { version = "1.29.1", features = ["full"] }
 tower = "0.4.13"
-tower-http = { version = "0.4.3", features = ["trace"] }
+tower-http = { version = "0.5", features = ["trace"] }
 tracing = "0.1.37"
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 unicode-bom = "2.0.2"

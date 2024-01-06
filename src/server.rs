@@ -1,5 +1,5 @@
 use axum::{
-    body::{Bytes, Full},
+    body::{Body, Bytes},
     extract::State,
     http::StatusCode,
     response::{Html, IntoResponse, Redirect, Response},
@@ -7,6 +7,7 @@ use axum::{
     Router,
 };
 use eyre::Context;
+use tokio::net::TcpListener;
 use tower::ServiceBuilder;
 use tower_http::trace::TraceLayer;
 use tracing::info;
@@ -57,7 +58,7 @@ impl IntoResponse for ErrorPng {
         Response::builder()
             .status(StatusCode::INTERNAL_SERVER_ERROR)
             .header("Content-Type", "image/png")
-            .body(Full::new(Bytes::from(self.data)))
+            .body(Body::from(Bytes::from(self.data)))
             .unwrap()
             .into_response()
     }
@@ -75,11 +76,11 @@ pub async fn serve(client: Client, config_file: ConfigFile) -> eyre::Result<()> 
         })
         .layer(ServiceBuilder::new().layer(TraceLayer::new_for_http()));
 
+    let listener = TcpListener::bind(&"0.0.0.0:3001").await?;
+
     info!(port = 3001, "listening!");
 
-    axum::Server::bind(&"0.0.0.0:3001".parse().unwrap())
-        .serve(app.into_make_service())
-        .await?;
+    axum::serve(listener, app.into_make_service()).await?;
 
     Ok(())
 }
@@ -91,7 +92,7 @@ async fn handle_redirect_kindle() -> Redirect {
 async fn generic_png_handler(
     render_target: RenderTarget,
     state: AppState,
-) -> Result<Response<Full<Bytes>>, ErrorPng> {
+) -> Result<Response<Body>, ErrorPng> {
     let stop_data = state
         .client
         .load_stop_data(state.config_file.clone())
@@ -108,7 +109,7 @@ async fn generic_png_handler(
     Ok(Response::builder()
         .status(StatusCode::OK)
         .header("Content-Type", "image/png")
-        .body(Full::new(Bytes::from(data)))
+        .body(Body::from(Bytes::from(data)))
         .unwrap())
 }
 
@@ -128,12 +129,10 @@ async fn handle_stops_html(State(state): State<AppState>) -> Result<Html<String>
 
 async fn handle_stops_browser_png(
     State(state): State<AppState>,
-) -> Result<Response<Full<Bytes>>, ErrorPng> {
+) -> Result<Response<Body>, ErrorPng> {
     generic_png_handler(RenderTarget::Browser, state).await
 }
 
-async fn handle_kindle_png(
-    State(state): State<AppState>,
-) -> Result<Response<Full<Bytes>>, ErrorPng> {
+async fn handle_kindle_png(State(state): State<AppState>) -> Result<Response<Body>, ErrorPng> {
     generic_png_handler(RenderTarget::Kindle, state).await
 }
