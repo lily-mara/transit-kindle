@@ -208,15 +208,15 @@ impl<'a> Render<'a> {
     fn draw_footer(&mut self) {
         let bottom_box_y = self.height - 40.0;
 
+        self.canvas.draw_rect(
+            Rect::new(0.0, bottom_box_y, self.width, self.height),
+            &self.light_grey_paint,
+        );
+
         self.canvas.draw_line(
             (0.0, bottom_box_y),
             (self.width, bottom_box_y),
             &self.black_paint_heavy,
-        );
-
-        self.canvas.draw_rect(
-            Rect::new(0.0, bottom_box_y, self.width, self.height),
-            &self.light_grey_paint,
         );
 
         let now = Local::now();
