@@ -77,25 +77,114 @@ fn render_ctx(
     Ok(image_data.as_bytes().into())
 }
 
-pub fn stops_png(
-    render_target: RenderTarget,
-    layout: Layout,
-    config_file: &ConfigFile,
-) -> Result<Vec<u8>> {
-    let black_paint = Paint::new(Color4f::new(0.0, 0.0, 0.0, 1.0), None);
-    let mut black_paint_heavy = Paint::new(Color4f::new(0.0, 0.0, 0.0, 1.0), None);
-    black_paint_heavy.set_stroke_width(2.0);
+struct Render<'a> {
+    black_paint: Paint,
+    black_paint_heavy: Paint,
+    grey_paint: Paint,
+    light_grey_paint: Paint,
 
-    let grey_paint = Paint::new(Color4f::new(0.7, 0.7, 0.7, 1.0), None);
-    let light_grey_paint = Paint::new(Color4f::new(0.8, 0.8, 0.8, 1.0), None);
+    typeface: Typeface,
+    font: Font,
 
-    let typeface = Typeface::new("Liberation Sans", FontStyle::bold())
-        .ok_or(eyre!("failed to construct skia typeface"))?;
+    canvas: &'a mut Canvas,
 
-    let font = Font::new(typeface, 24.0);
+    width: f32,
+    height: f32,
+    y: f32,
 
-    let draw_text_in_bubble = |canvas: &mut Canvas, text: &str, x: i32, y: i32| -> Result<Rect> {
-        let blob = TextBlob::new(text, &font).ok_or(eyre!("failed to construct skia text blob"))?;
+    x_midpoint: f32,
+}
+
+impl<'a> Render<'a> {
+    fn new(canvas: &'a mut Canvas, config: &ConfigFile) -> Result<Self> {
+        let mut black_paint_heavy = Paint::new(Color4f::new(0.0, 0.0, 0.0, 1.0), None);
+        black_paint_heavy.set_stroke_width(2.0);
+
+        let typeface = Typeface::new("Liberation Sans", FontStyle::bold())
+            .ok_or(eyre!("failed to construct skia typeface"))?;
+
+        Ok(Self {
+            canvas,
+
+            black_paint: Paint::new(Color4f::new(0.0, 0.0, 0.0, 1.0), None),
+            black_paint_heavy,
+
+            grey_paint: Paint::new(Color4f::new(0.7, 0.7, 0.7, 1.0), None),
+            light_grey_paint: Paint::new(Color4f::new(0.8, 0.8, 0.8, 1.0), None),
+
+            font: Font::new(&typeface, 24.0),
+            typeface,
+
+            width: config.layout.width as f32,
+            height: config.layout.height as f32,
+            y: 0.0,
+
+            x_midpoint: config.layout.width as f32 / 2.0,
+        })
+    }
+
+    fn draw_row(&mut self, row: &Row, x1: f32, x2: f32) -> Result<()> {
+        if self.y > 0.0 {
+            self.canvas
+                .draw_line((x1, self.y), (x2, self.y), &self.black_paint_heavy);
+            self.y += 28.0;
+        }
+
+        match row {
+            Row::Agency(agency) => self.draw_agency_row(agency, x1, x2)?,
+            Row::Text(text) => self.draw_text_row(text, x1, x2),
+        }
+
+        Ok(())
+    }
+
+    fn draw_agency_row(&mut self, agency: &Agency, x1: f32, x2: f32) -> Result<()> {
+        self.y += 4.0;
+
+        let lines_len = agency.lines.len();
+
+        for (idx, line) in agency.lines.iter().enumerate() {
+            let x = x1 + 20.0;
+
+            let line_id_bounds = self.draw_text_in_bubble(&line.id, x)?;
+
+            let destination_blob = TextBlob::new(&line.destination, &self.font)
+                .ok_or(eyre!("failed to construct skia text blob"))?;
+            self.canvas.draw_text_blob(
+                destination_blob,
+                (x + line_id_bounds.width(), self.y),
+                &self.black_paint,
+            );
+
+            let mins = line.departure_minutes_str();
+            let time_text = format!("{mins} min");
+
+            self.canvas.draw_str_align(
+                time_text,
+                (x2 - 20.0, self.y),
+                &self.font,
+                &self.black_paint,
+                Align::Right,
+            );
+
+            if idx < (lines_len - 1) {
+                self.canvas.draw_line(
+                    (x1 + 40.0, self.y + 15.0),
+                    (x2 - 40.0, self.y + 15.0),
+                    &self.grey_paint,
+                );
+                self.y += 48.0;
+            } else {
+                self.y += 15.0;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn draw_text_in_bubble(&mut self, text: &str, x: f32) -> Result<Rect> {
+        let blob =
+            TextBlob::new(text, &self.font).ok_or(eyre!("failed to construct skia text blob"))?;
 
         let mut bounds = *blob.bounds();
         bounds.set_xywh(
@@ -105,143 +194,111 @@ pub fn stops_png(
             bounds.height(),
         );
 
-        let rect = bounds.with_offset((x, y));
+        let rect = bounds.with_offset((x, self.y));
 
-        canvas.draw_round_rect(rect, 10.0, 10.0, &grey_paint);
+        self.canvas
+            .draw_round_rect(rect, 10.0, 10.0, &self.grey_paint);
 
-        canvas.draw_text_blob(&blob, (x, y), &black_paint);
+        self.canvas
+            .draw_text_blob(&blob, (x, self.y), &self.black_paint);
 
         Ok(bounds)
-    };
+    }
 
-    let draw_agency_row =
-        |canvas: &mut Canvas, agency: &Agency, (x1, x2): (i32, i32), y: &mut i32| -> Result<()> {
-            *y += 4;
+    fn draw_footer(&mut self) {
+        let bottom_box_y = self.height - 40.0;
 
-            let lines_len = agency.lines.len();
-
-            for (idx, line) in agency.lines.iter().enumerate() {
-                let x = x1 + 20;
-
-                let line_id_bounds = draw_text_in_bubble(canvas, &line.id, x, *y)?;
-
-                let destination_blob = TextBlob::new(&line.destination, &font)
-                    .ok_or(eyre!("failed to construct skia text blob"))?;
-                canvas.draw_text_blob(
-                    destination_blob,
-                    ((x + line_id_bounds.width() as i32), *y),
-                    &black_paint,
-                );
-
-                let mins = line.departure_minutes_str();
-                let time_text = format!("{mins} min");
-
-                canvas.draw_str_align(
-                    time_text,
-                    (x2 as f32 - 20.0, (*y) as f32),
-                    &font,
-                    &black_paint,
-                    Align::Right,
-                );
-
-                if idx < (lines_len - 1) {
-                    canvas.draw_line((x1 + 40, *y + 15), (x2 - 40, *y + 15), &grey_paint);
-                    *y += 48;
-                } else {
-                    *y += 15;
-                }
-            }
-
-            Ok(())
-        };
-
-    let draw_text_row =
-        |canvas: &mut Canvas, text: &str, (x1, x2): (i32, i32), y: &mut i32| -> Result<()> {
-            canvas.draw_rect(
-                Rect::new(x1 as f32, *y as f32, x2 as f32, (*y + 40) as f32),
-                &light_grey_paint,
-            );
-            *y += 28;
-
-            canvas.draw_str_align(
-                text,
-                ((x1 + x2) as f32 / 2.0, *y as f32),
-                &font,
-                &black_paint,
-                Align::Center,
-            );
-
-            *y += 12;
-
-            Ok(())
-        };
-
-    let draw_row =
-        |canvas: &mut Canvas, row: &Row, (x1, x2): (i32, i32), y: &mut i32| -> Result<()> {
-            if *y > 0 {
-                canvas.draw_line((x1, *y), (x2, *y), &black_paint_heavy);
-                *y += 28;
-            }
-
-            match row {
-                Row::Agency(agency) => draw_agency_row(canvas, agency, (x1, x2), y)?,
-                Row::Text(text) => draw_text_row(canvas, text, (x1, x2), y)?,
-            }
-
-            Ok(())
-        };
-
-    let halfway = config_file.layout.width / 2;
-
-    let draw_footer = |canvas: &mut Canvas| {
-        let bottom_box_y = (config_file.layout.height - 40) as f32;
-
-        canvas.draw_line(
-            (0 as f32, bottom_box_y),
-            (config_file.layout.width as f32, bottom_box_y),
-            &black_paint_heavy,
+        self.canvas.draw_line(
+            (0.0, bottom_box_y),
+            (self.width, bottom_box_y),
+            &self.black_paint_heavy,
         );
 
-        canvas.draw_rect(
-            Rect::new(
-                0.0,
-                bottom_box_y,
-                config_file.layout.width as f32,
-                config_file.layout.height as f32,
-            ),
-            &light_grey_paint,
+        self.canvas.draw_rect(
+            Rect::new(0.0, bottom_box_y, self.width, self.height),
+            &self.light_grey_paint,
         );
 
         let now = Local::now();
         let time = now.format("%a %b %d - %H:%M").to_string();
 
-        canvas.draw_str_align(
+        self.canvas.draw_str_align(
             time,
-            (halfway as f32, (config_file.layout.height - 10) as f32),
-            &font,
-            &black_paint,
+            (self.x_midpoint, self.height - 10.0),
+            &self.font,
+            &self.black_paint,
             Align::Center,
         );
-    };
+    }
 
-    let image_data = render_ctx(render_target, config_file, |canvas| {
-        let mut y = 0;
-        for row in &layout.left.rows {
-            draw_row(canvas, row, (0, halfway), &mut y)?;
-        }
+    fn draw_text_row(&mut self, text: &str, x1: f32, x2: f32) {
+        self.canvas.draw_rect(
+            Rect::new(x1, self.y, x2, self.y + 40.0),
+            &self.light_grey_paint,
+        );
+        self.y += 28.0;
 
-        let mut y = 0;
-        for row in &layout.right.rows {
-            draw_row(canvas, row, (halfway, config_file.layout.width), &mut y)?;
-        }
-
-        canvas.draw_line(
-            (halfway, 0),
-            (halfway, config_file.layout.height),
-            &black_paint_heavy,
+        self.canvas.draw_str_align(
+            text,
+            ((x1 + x2) / 2.0, self.y),
+            &self.font,
+            &self.black_paint,
+            Align::Center,
         );
 
-        draw_footer(canvas);
+        self.y += 12.0;
+    }
+
+    fn draw(mut self, layout: &Layout) -> Result<()> {
+        self.y = 0.0;
+        for row in &layout.left.rows {
+            self.draw_row(row, 0.0, self.x_midpoint)?;
+        }
+
+        self.y = 0.0;
+        for row in &layout.right.rows {
+            self.draw_row(row, self.x_midpoint, self.width)?;
+        }
+
+        self.canvas.draw_line(
+            (self.x_midpoint, 0.0),
+            (self.x_midpoint, self.height),
+            &self.black_paint_heavy,
+        );
+
+        self.draw_footer();
+
+        Ok(())
+    }
+
+    fn draw_error(mut self, error: eyre::Report) {
+        let big_font = Font::new(&self.typeface, 36.0);
+        let small_font: skia_safe::Handle<_> = Font::new(&self.typeface, 12.0);
+
+        self.canvas
+            .draw_str("ERROR", (100, 200), &big_font, &self.black_paint);
+        self.y = 250.0;
+
+        for e in error.chain() {
+            self.canvas.draw_str(
+                format!("{e}"),
+                (100.0, self.y),
+                &small_font,
+                &self.black_paint,
+            );
+            self.y += 20.0;
+        }
+    }
+}
+
+pub fn stops_png(
+    render_target: RenderTarget,
+    layout: Layout,
+    config_file: &ConfigFile,
+) -> Result<Vec<u8>> {
+    let image_data = render_ctx(render_target, config_file, |canvas| {
+        let ctx = Render::new(canvas, config_file)?;
+        ctx.draw(&layout)?;
 
         Ok(())
     })?;
@@ -254,26 +311,9 @@ pub fn error_png(
     config_file: &ConfigFile,
     error: eyre::Report,
 ) -> Result<Vec<u8>> {
-    let black_paint = Paint::new(Color4f::new(0.0, 0.0, 0.0, 1.0), None);
-
-    let typeface = Typeface::new("Liberation Sans", FontStyle::normal())
-        .ok_or(eyre!("failed to construct skia typeface"))?;
-
-    let big_font = Font::new(&typeface, 36.0);
-    let small_font: skia_safe::Handle<_> = Font::new(typeface, 12.0);
-
-    let failure_blob =
-        TextBlob::new("ERROR", &big_font).ok_or(eyre!("failed to construct skia text blob"))?;
-
     let data = render_ctx(render_target, config_file, move |canvas| {
-        canvas.draw_text_blob(failure_blob, (100, 200), &black_paint);
-        let mut y = 250;
-        for e in error.chain() {
-            let error_blob = TextBlob::new(format!("{e}"), &small_font)
-                .ok_or(eyre!("failed to construct skia text blob"))?;
-            canvas.draw_text_blob(error_blob, (100, y), &black_paint);
-            y += 20;
-        }
+        let ctx = Render::new(canvas, config_file)?;
+        ctx.draw_error(error);
         Ok(())
     })?;
 
