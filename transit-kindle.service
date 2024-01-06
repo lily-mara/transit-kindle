@@ -8,6 +8,7 @@ WorkingDirectory=/opt/transit-kindle/
 Environment=RUST_LOG=info,tower_http=debug
 Restart=always
 RestartSec=10
+User=transit-kindle
 
 [Install]
 WantedBy=multi-user.target
