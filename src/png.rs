@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::{
     config::ConfigFile,
     layout::{Agency, Layout, Row},
@@ -205,7 +207,7 @@ impl<'a> Render<'a> {
         Ok(bounds)
     }
 
-    fn draw_footer(&mut self) {
+    fn draw_footer(&mut self, all_agencies: &HashMap<String, DateTime<Utc>>) {
         let bottom_box_y = self.height - 40.0;
 
         self.canvas.draw_rect(
@@ -222,12 +224,32 @@ impl<'a> Render<'a> {
         let now = Local::now();
         let time = now.format("%a %b %d - %H:%M").to_string();
 
+        let mut agency_str = String::from("Last Updated -");
+
+        for (agency_name, live_time) in all_agencies {
+            let live_local = DateTime::<Local>::from(*live_time);
+            let live_time_fmt = live_local.format("%H:%M").to_string();
+
+            let agency = crate::agencies::agency_readable(agency_name);
+
+            agency_str.push_str(&format!(" {agency}: {live_time_fmt},"));
+        }
+        agency_str.pop();
+
         self.canvas.draw_str_align(
-            time,
-            (self.x_midpoint, self.height - 10.0),
+            agency_str,
+            (self.width - 20.0, self.height - 10.0),
             &self.font,
             &self.black_paint,
-            Align::Center,
+            Align::Right,
+        );
+
+        self.canvas.draw_str_align(
+            time,
+            (20.0, self.height - 10.0),
+            &self.font,
+            &self.black_paint,
+            Align::Left,
         );
     }
 
@@ -266,7 +288,7 @@ impl<'a> Render<'a> {
             &self.black_paint_heavy,
         );
 
-        self.draw_footer();
+        self.draw_footer(&layout.all_agencies);
 
         Ok(())
     }

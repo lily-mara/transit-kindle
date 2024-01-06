@@ -1,17 +1,21 @@
 use std::collections::HashMap;
 
+use chrono::prelude::*;
 use eyre::{bail, Result};
 use itertools::Itertools;
 use tracing::warn;
 
 use crate::{
-    api_client::{self, StopData, Upcoming},
+    api_client::{StopData, Upcoming},
     config::{ConfigFile, SectionConfig, SideConfig, TextSectionConfig},
 };
 
 pub struct Layout {
     pub left: Column,
     pub right: Column,
+
+    /// Mapping of names of agencies to the timestamp that their data was last refreshed
+    pub all_agencies: HashMap<String, DateTime<Utc>>,
 }
 
 pub struct Column {
@@ -40,19 +44,34 @@ impl Line {
 }
 
 pub fn data_to_layout(stop_data: StopData, config_file: &ConfigFile) -> Layout {
-    let left = column(&stop_data, &config_file.layout.left);
-    let right = column(&stop_data, &config_file.layout.right);
+    let mut all_agencies = HashMap::new();
 
-    Layout { left, right }
+    let left = column(&stop_data, &config_file.layout.left, &mut all_agencies);
+    let right = column(&stop_data, &config_file.layout.right, &mut all_agencies);
+
+    Layout {
+        left,
+        right,
+        all_agencies,
+    }
 }
 
-fn column(stop_data: &StopData, side: &SideConfig) -> Column {
+fn column(
+    stop_data: &StopData,
+    side: &SideConfig,
+    all_agencies: &mut HashMap<String, DateTime<Utc>>,
+) -> Column {
     let mut rows = Vec::new();
 
     for section in &side.sections {
         match section {
             SectionConfig::AgencySection(agency_section) => {
-                match agency(stop_data, &agency_section.agency, &agency_section.direction) {
+                match agency(
+                    stop_data,
+                    &agency_section.agency,
+                    &agency_section.direction,
+                    all_agencies,
+                ) {
                     Ok(x) => rows.push(Row::Agency(x)),
                     Err(e) => {
                         warn!(error = %e, "failed to generate agency data");
@@ -69,21 +88,21 @@ fn column(stop_data: &StopData, side: &SideConfig) -> Column {
 }
 
 fn agency(
-    stop_data: &HashMap<
-        String,
-        HashMap<String, Vec<(api_client::Line, Vec<api_client::Upcoming>)>>,
-    >,
+    stop_data: &StopData,
     agency_name: &str,
     direction: &str,
+    all_agencies: &mut HashMap<String, DateTime<Utc>>,
 ) -> Result<Agency> {
-    let agency = match stop_data.get(agency_name) {
+    let agency = match stop_data.agencies.get(agency_name) {
         Some(x) => x,
         None => {
             bail!("agency {} not found in API response data", agency_name);
         }
     };
 
-    let lines_in = match agency.get(direction) {
+    all_agencies.insert(agency_name.to_owned(), agency.live_time);
+
+    let lines_in = match agency.directions.get(direction) {
         Some(x) => x,
         None => {
             bail!(
@@ -96,7 +115,7 @@ fn agency(
 
     let mut lines = Vec::new();
 
-    for (line, upcoming) in lines_in {
+    for (line, upcoming) in &lines_in.lines {
         lines.push(Line {
             id: line.line.clone(),
             destination: line.destination.clone(),

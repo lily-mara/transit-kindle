@@ -1,4 +1,4 @@
-use api_client::Client;
+use api_client::DataAccess;
 use eyre::Result;
 use tracing_subscriber::EnvFilter;
 
@@ -12,6 +12,7 @@ macro_rules! opt_cont {
     };
 }
 
+mod agencies;
 mod api_client;
 mod config;
 mod html;
@@ -34,12 +35,9 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
-    let client = Client::new(
-        config_file.api_key.clone(),
-        config_file.destination_subs.clone(),
-    );
+    let data_access = DataAccess::new(config_file.clone());
 
-    server::serve(client, config_file).await?;
+    server::serve(data_access, config_file).await?;
 
     Ok(())
 }

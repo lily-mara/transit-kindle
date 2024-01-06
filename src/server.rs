@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use axum::{
     body::{Body, Bytes},
     extract::State,
@@ -13,7 +15,7 @@ use tower_http::trace::TraceLayer;
 use tracing::info;
 
 use crate::{
-    api_client::Client,
+    api_client::DataAccess,
     config::ConfigFile,
     html::stops_html,
     layout::data_to_layout,
@@ -22,7 +24,7 @@ use crate::{
 
 #[derive(Clone)]
 struct AppState {
-    client: Client,
+    data_access: Arc<DataAccess>,
     config_file: ConfigFile,
 }
 
@@ -64,14 +66,14 @@ impl IntoResponse for ErrorPng {
     }
 }
 
-pub async fn serve(client: Client, config_file: ConfigFile) -> eyre::Result<()> {
+pub async fn serve(data_access: Arc<DataAccess>, config_file: ConfigFile) -> eyre::Result<()> {
     let app = Router::new()
         .route("/kindle.png", get(handle_kindle_png))
         .route("/browser.png", get(handle_stops_browser_png))
         .route("/stops.html", get(handle_stops_html))
         .route("/", get(handle_redirect_kindle))
         .with_state(AppState {
-            client,
+            data_access,
             config_file,
         })
         .layer(ServiceBuilder::new().layer(TraceLayer::new_for_http()));
@@ -94,7 +96,7 @@ async fn generic_png_handler(
     state: AppState,
 ) -> Result<Response<Body>, ErrorPng> {
     let stop_data = state
-        .client
+        .data_access
         .load_stop_data(state.config_file.clone())
         .await
         .wrap_err("load stop data")
@@ -115,7 +117,7 @@ async fn generic_png_handler(
 
 async fn handle_stops_html(State(state): State<AppState>) -> Result<Html<String>, StatusCode> {
     let stop_data = state
-        .client
+        .data_access
         .load_stop_data(state.config_file.clone())
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
