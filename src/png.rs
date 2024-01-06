@@ -224,15 +224,14 @@ impl<'a> Render<'a> {
         let now = Local::now();
         let time = now.format("%a %b %d - %H:%M").to_string();
 
-        let mut agency_str = String::from("Last Updated -");
+        let mut agency_str = String::from("Data Age -");
 
         for (agency_name, live_time) in all_agencies {
-            let live_local = DateTime::<Local>::from(*live_time);
-            let live_time_fmt = live_local.format("%H:%M").to_string();
+            let age = now.signed_duration_since(*live_time);
 
             let agency = crate::agencies::agency_readable(agency_name);
 
-            agency_str.push_str(&format!(" {agency}: {live_time_fmt},"));
+            agency_str.push_str(&format!(" {agency}: {} min,", age.num_minutes()));
         }
         agency_str.pop();
 
