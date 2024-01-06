@@ -10,9 +10,4 @@ if [ $? -eq 0 ]; then
     eips -c
 
     eips -g image.png
-else
-    eips -c
-    eips -c
-
-    eips "Last updated $(cat updated-time)"
 fi
