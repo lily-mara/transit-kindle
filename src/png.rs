@@ -105,6 +105,9 @@ impl<'a> Render<'a> {
         let typeface = Typeface::new("Liberation Sans", FontStyle::bold())
             .ok_or(eyre!("failed to construct skia typeface"))?;
 
+        let mut light_grey_paint = Paint::new(Color4f::new(0.8, 0.8, 0.8, 1.0), None);
+        light_grey_paint.set_anti_alias(true);
+
         Ok(Self {
             canvas,
 
@@ -112,7 +115,7 @@ impl<'a> Render<'a> {
             black_paint_heavy,
 
             grey_paint: Paint::new(Color4f::new(0.7, 0.7, 0.7, 1.0), None),
-            light_grey_paint: Paint::new(Color4f::new(0.8, 0.8, 0.8, 1.0), None),
+            light_grey_paint,
 
             font: Font::new(&typeface, 24.0),
             typeface,
@@ -188,18 +191,13 @@ impl<'a> Render<'a> {
         let blob =
             TextBlob::new(text, &self.font).ok_or(eyre!("failed to construct skia text blob"))?;
 
-        let mut bounds = *blob.bounds();
-        bounds.set_xywh(
-            bounds.x() + 1.0,
-            bounds.y(),
-            bounds.width() - 5.0,
-            bounds.height(),
-        );
+        let (text_width, text_measurements) = self.font.measure_str(text, Some(&self.black_paint));
 
-        let rect = bounds.with_offset((x, self.y));
+        let bounds = Rect::new(x, self.y + text_measurements.top, x + text_width, self.y)
+            .with_outset((10.0, 10.0));
 
         self.canvas
-            .draw_round_rect(rect, 24.0, 24.0, &self.grey_paint);
+            .draw_round_rect(bounds, 24.0, 24.0, &self.light_grey_paint);
 
         self.canvas
             .draw_text_blob(&blob, (x, self.y), &self.black_paint);
