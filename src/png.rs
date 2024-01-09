@@ -5,13 +5,13 @@ use std::{
 
 use crate::{
     config::ConfigFile,
-    layout::{Agency, Layout, Row},
+    layout::{Agency, Layout, Line, Row},
 };
 use chrono::prelude::*;
 use eyre::{bail, eyre, Result};
 use skia_safe::{
-    utils::text_utils::Align, Bitmap, Canvas, Color4f, Font, FontStyle, ImageInfo, Paint, Point,
-    Rect, TextBlob, Typeface,
+    gradient_shader::GradientShaderColors, utils::text_utils::Align, Bitmap, Canvas, Color,
+    Color4f, Font, FontStyle, ImageInfo, Paint, Point, Rect, Shader, TextBlob, TileMode, Typeface,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -88,6 +88,7 @@ struct Render<'a> {
     grey_paint: Paint,
     light_grey_paint: Paint,
     line_id_bubble_paint: Paint,
+    white_paint: Paint,
 
     typeface: Typeface,
     font: Font,
@@ -122,6 +123,7 @@ impl<'a> Render<'a> {
 
             line_id_bubble_paint: line_bubble_paint,
             light_grey_paint: Paint::new(Color4f::new(0.8, 0.8, 0.8, 1.0), None),
+            white_paint: Paint::new(Color4f::new(1.0, 1.0, 1.0, 1.0), None),
 
             font: Font::new(&typeface, 24.0),
             typeface,
@@ -159,24 +161,14 @@ impl<'a> Render<'a> {
 
             let line_id_bounds = self.draw_line_id_bubble(&line.id, x)?;
 
-            let destination_blob = TextBlob::new(&line.destination, &self.font)
-                .ok_or(eyre!("failed to construct skia text blob"))?;
-            self.canvas.draw_text_blob(
-                destination_blob,
+            self.canvas.draw_str(
+                &line.destination,
                 (x + line_id_bounds.width(), self.y),
-                &self.black_paint,
-            );
-
-            let mins = line.departure_minutes_str();
-            let time_text = format!("{mins} min");
-
-            self.canvas.draw_str_align(
-                time_text,
-                (x2 - 20.0, self.y),
                 &self.font,
                 &self.black_paint,
-                Align::Right,
             );
+
+            self.draw_departure_times(x2, line);
 
             if idx < (lines_len - 1) {
                 self.canvas.draw_line(
@@ -193,18 +185,77 @@ impl<'a> Render<'a> {
         Ok(())
     }
 
+    fn draw_departure_times(&mut self, x: f32, line: &Line) {
+        let mins = line.departure_minutes_str();
+        let time_text = format!("{mins} min");
+
+        let time_point = (x - 20.0, self.y);
+
+        let time_rect_exact = self.text_bounds_right_align(&time_text, time_point);
+        let time_rect = time_rect_exact.with_outset((15.0, 10.0));
+
+        let time_rect_left = Rect::new(
+            time_rect.left - 25.0,
+            time_rect_exact.top,
+            time_rect.left,
+            time_rect.bottom,
+        );
+
+        let white_opaque = Color::from_argb(255, 255, 255, 255);
+        let white_transparent = Color::from_argb(0, 255, 255, 255);
+
+        let mut gradiant = Paint::new(Color4f::new(0.0, 0.0, 0.0, 1.0), None);
+        gradiant.set_shader(Shader::linear_gradient(
+            (
+                (
+                    time_rect_left.right,
+                    time_rect_left.top + (0.5 * time_rect_left.height()),
+                ),
+                (
+                    time_rect_left.left,
+                    time_rect_left.top + (0.5 * time_rect_left.height()),
+                ),
+            ),
+            GradientShaderColors::Colors(&[white_opaque, white_transparent]),
+            Some(&[0.0f32, 1.0] as &[f32]),
+            TileMode::Repeat,
+            None,
+            None,
+        ));
+
+        self.canvas.draw_rect(time_rect, &self.white_paint);
+
+        self.canvas.draw_rect(time_rect_left, &gradiant);
+
+        self.canvas.draw_str_align(
+            time_text,
+            time_point,
+            &self.font,
+            &self.black_paint,
+            Align::Right,
+        );
+    }
+
     fn map_range(from_range: (f32, f32), to_range: (f32, f32), s: f32) -> f32 {
         to_range.0 + (s - from_range.0) * (to_range.1 - to_range.0) / (from_range.1 - from_range.0)
+    }
+
+    fn text_bounds(&mut self, text: &str, (x, y): (f32, f32)) -> Rect {
+        let (text_width, text_measurements) = self.font.measure_str(text, Some(&self.black_paint));
+        Rect::new(x, y + text_measurements.top, x + text_width, y)
+    }
+
+    fn text_bounds_right_align(&mut self, text: &str, (x, y): (f32, f32)) -> Rect {
+        let (text_width, text_measurements) = self.font.measure_str(text, Some(&self.black_paint));
+        Rect::new(x - text_width, y + text_measurements.top, x, y)
     }
 
     fn draw_line_id_bubble(&mut self, line_id: &str, x: f32) -> Result<Rect> {
         let blob = TextBlob::new(line_id, &self.font)
             .ok_or(eyre!("failed to construct skia text blob"))?;
 
-        let (text_width, text_measurements) =
-            self.font.measure_str(line_id, Some(&self.black_paint));
-
-        let bounds = Rect::new(x, self.y + text_measurements.top, x + text_width, self.y)
+        let bounds = self
+            .text_bounds(line_id, (x, self.y))
             .with_outset((10.0, 10.0));
 
         let mut color_hasher = DefaultHasher::new();
