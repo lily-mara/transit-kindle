@@ -1,17 +1,18 @@
 use std::{
     collections::{hash_map::DefaultHasher, HashMap},
     hash::Hasher,
+    sync::Arc,
 };
 
 use crate::{
     config::ConfigFile,
     layout::{Agency, Layout, Line, Row},
 };
-use chrono::prelude::*;
+use chrono::{prelude::*, Duration};
 use eyre::{bail, eyre, Result};
 use skia_safe::{
     gradient_shader::GradientShaderColors, utils::text_utils::Align, Bitmap, Canvas, Color,
-    Color4f, Font, FontStyle, ImageInfo, Paint, Point, Rect, Shader, TextBlob, TileMode, Typeface,
+    Color4f, Font, FontMgr, ImageInfo, Paint, Point, Rect, Shader, TextBlob, TileMode, Typeface,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -82,16 +83,20 @@ fn render_ctx(
     Ok(image_data.as_bytes().into())
 }
 
-struct Render<'a> {
+pub struct SharedRenderData {
     black_paint: Paint,
     black_paint_heavy: Paint,
     grey_paint: Paint,
     light_grey_paint: Paint,
-    line_id_bubble_paint: Paint,
     white_paint: Paint,
-
     typeface: Typeface,
     font: Font,
+}
+
+struct Render<'a> {
+    shared: Arc<SharedRenderData>,
+
+    line_id_bubble_paint: Paint,
 
     canvas: &'a mut Canvas,
 
@@ -102,31 +107,44 @@ struct Render<'a> {
     x_midpoint: f32,
 }
 
-impl<'a> Render<'a> {
-    fn new(canvas: &'a mut Canvas, config: &ConfigFile) -> Result<Self> {
+impl SharedRenderData {
+    pub fn new() -> Arc<Self> {
         let mut black_paint_heavy = Paint::new(Color4f::new(0.0, 0.0, 0.0, 1.0), None);
         black_paint_heavy.set_stroke_width(2.0);
 
-        let typeface = Typeface::new("Liberation Sans", FontStyle::bold())
-            .ok_or(eyre!("failed to construct skia typeface"))?;
+        let font_mgr = FontMgr::new();
+        let typeface = font_mgr
+            .new_from_data(include_bytes!("../media/OpenSansEmoji.ttf"), None)
+            .unwrap();
 
-        let mut line_bubble_paint = Paint::new(Color4f::new(0.8, 0.8, 0.8, 1.0), None);
-        line_bubble_paint.set_anti_alias(true);
-
-        Ok(Self {
-            canvas,
-
+        Arc::new(Self {
             black_paint: Paint::new(Color4f::new(0.0, 0.0, 0.0, 1.0), None),
             black_paint_heavy,
 
             grey_paint: Paint::new(Color4f::new(0.7, 0.7, 0.7, 1.0), None),
-
-            line_id_bubble_paint: line_bubble_paint,
             light_grey_paint: Paint::new(Color4f::new(0.8, 0.8, 0.8, 1.0), None),
             white_paint: Paint::new(Color4f::new(1.0, 1.0, 1.0, 1.0), None),
 
             font: Font::new(&typeface, 24.0),
             typeface,
+        })
+    }
+}
+
+impl<'a> Render<'a> {
+    fn new(
+        canvas: &'a mut Canvas,
+        shared: Arc<SharedRenderData>,
+        config: &ConfigFile,
+    ) -> Result<Self> {
+        let mut line_bubble_paint = Paint::new(Color4f::new(0.8, 0.8, 0.8, 1.0), None);
+        line_bubble_paint.set_anti_alias(true);
+
+        Ok(Self {
+            canvas,
+            shared,
+
+            line_id_bubble_paint: line_bubble_paint,
 
             width: config.layout.width as f32,
             height: config.layout.height as f32,
@@ -139,7 +157,7 @@ impl<'a> Render<'a> {
     fn draw_row(&mut self, row: &Row, x1: f32, x2: f32) -> Result<()> {
         if self.y > 0.0 {
             self.canvas
-                .draw_line((x1, self.y), (x2, self.y), &self.black_paint_heavy);
+                .draw_line((x1, self.y), (x2, self.y), &self.shared.black_paint_heavy);
             self.y += 28.0;
         }
 
@@ -164,8 +182,8 @@ impl<'a> Render<'a> {
             self.canvas.draw_str(
                 &line.destination,
                 (x + line_id_bounds.width(), self.y),
-                &self.font,
-                &self.black_paint,
+                &self.shared.font,
+                &self.shared.black_paint,
             );
 
             self.draw_departure_times(x2, line);
@@ -174,7 +192,7 @@ impl<'a> Render<'a> {
                 self.canvas.draw_line(
                     (x1 + 40.0, self.y + 15.0),
                     (x2 - 40.0, self.y + 15.0),
-                    &self.grey_paint,
+                    &self.shared.grey_paint,
                 );
                 self.y += 48.0;
             } else {
@@ -223,15 +241,15 @@ impl<'a> Render<'a> {
             None,
         ));
 
-        self.canvas.draw_rect(time_rect, &self.white_paint);
+        self.canvas.draw_rect(time_rect, &self.shared.white_paint);
 
         self.canvas.draw_rect(time_rect_left, &gradiant);
 
         self.canvas.draw_str_align(
             time_text,
             time_point,
-            &self.font,
-            &self.black_paint,
+            &self.shared.font,
+            &self.shared.black_paint,
             Align::Right,
         );
     }
@@ -241,17 +259,23 @@ impl<'a> Render<'a> {
     }
 
     fn text_bounds(&mut self, text: &str, (x, y): (f32, f32)) -> Rect {
-        let (text_width, text_measurements) = self.font.measure_str(text, Some(&self.black_paint));
+        let (text_width, text_measurements) = self
+            .shared
+            .font
+            .measure_str(text, Some(&self.shared.black_paint));
         Rect::new(x, y + text_measurements.top, x + text_width, y)
     }
 
     fn text_bounds_right_align(&mut self, text: &str, (x, y): (f32, f32)) -> Rect {
-        let (text_width, text_measurements) = self.font.measure_str(text, Some(&self.black_paint));
+        let (text_width, text_measurements) = self
+            .shared
+            .font
+            .measure_str(text, Some(&self.shared.black_paint));
         Rect::new(x - text_width, y + text_measurements.top, x, y)
     }
 
     fn draw_line_id_bubble(&mut self, line_id: &str, x: f32) -> Result<Rect> {
-        let blob = TextBlob::new(line_id, &self.font)
+        let blob = TextBlob::new(line_id, &self.shared.font)
             .ok_or(eyre!("failed to construct skia text blob"))?;
 
         let bounds = self
@@ -272,7 +296,7 @@ impl<'a> Render<'a> {
             .draw_round_rect(bounds, 24.0, 24.0, &self.line_id_bubble_paint);
 
         self.canvas
-            .draw_text_blob(&blob, (x, self.y), &self.black_paint);
+            .draw_text_blob(&blob, (x, self.y), &self.shared.black_paint);
 
         Ok(bounds)
     }
@@ -282,42 +306,49 @@ impl<'a> Render<'a> {
 
         self.canvas.draw_rect(
             Rect::new(0.0, bottom_box_y, self.width, self.height),
-            &self.light_grey_paint,
+            &self.shared.light_grey_paint,
         );
 
         self.canvas.draw_line(
             (0.0, bottom_box_y),
             (self.width, bottom_box_y),
-            &self.black_paint_heavy,
+            &self.shared.black_paint_heavy,
         );
 
         let now = Local::now();
         let time = now.format("%a %b %d - %H:%M").to_string();
 
-        let mut agency_str = String::from("Data Age -");
+        let mut agency_str = String::new();
 
         for (agency_name, live_time) in all_agencies {
             let age = now.signed_duration_since(*live_time);
 
             let agency = crate::agencies::agency_readable(agency_name);
 
-            agency_str.push_str(&format!(" {agency}: {} min,", age.num_minutes()));
+            let status = if age < Duration::minutes(5) {
+                // Checkbox emoji
+                String::from("\u{2611}")
+            } else {
+                format!("{} mins", age.num_minutes())
+            };
+
+            agency_str.push_str(&format!(" {agency}: {status},"));
         }
         agency_str.pop();
 
         self.canvas.draw_str_align(
             agency_str,
             (self.width - 20.0, self.height - 10.0),
-            &self.font,
-            &self.black_paint,
+            &self.shared.font,
+            &self.shared.black_paint,
             Align::Right,
         );
 
         self.canvas.draw_str_align(
             time,
             (20.0, self.height - 10.0),
-            &self.font,
-            &self.black_paint,
+            &self.shared.font,
+            &self.shared.black_paint,
             Align::Left,
         );
     }
@@ -325,15 +356,15 @@ impl<'a> Render<'a> {
     fn draw_text_row(&mut self, text: &str, x1: f32, x2: f32) {
         self.canvas.draw_rect(
             Rect::new(x1, self.y, x2, self.y + 40.0),
-            &self.light_grey_paint,
+            &self.shared.light_grey_paint,
         );
         self.y += 28.0;
 
         self.canvas.draw_str_align(
             text,
             ((x1 + x2) / 2.0, self.y),
-            &self.font,
-            &self.black_paint,
+            &self.shared.font,
+            &self.shared.black_paint,
             Align::Center,
         );
 
@@ -354,7 +385,7 @@ impl<'a> Render<'a> {
         self.canvas.draw_line(
             (self.x_midpoint, 0.0),
             (self.x_midpoint, self.height),
-            &self.black_paint_heavy,
+            &self.shared.black_paint_heavy,
         );
 
         self.draw_footer(&layout.all_agencies);
@@ -363,11 +394,11 @@ impl<'a> Render<'a> {
     }
 
     fn draw_error(mut self, error: eyre::Report) {
-        let big_font = Font::new(&self.typeface, 36.0);
-        let small_font: skia_safe::Handle<_> = Font::new(&self.typeface, 12.0);
+        let big_font = Font::new(&self.shared.typeface, 36.0);
+        let small_font: skia_safe::Handle<_> = Font::new(&self.shared.typeface, 12.0);
 
         self.canvas
-            .draw_str("ERROR", (100, 200), &big_font, &self.black_paint);
+            .draw_str("ERROR", (100, 200), &big_font, &self.shared.black_paint);
         self.y = 250.0;
 
         for e in error.chain() {
@@ -375,7 +406,7 @@ impl<'a> Render<'a> {
                 format!("{e}"),
                 (100.0, self.y),
                 &small_font,
-                &self.black_paint,
+                &self.shared.black_paint,
             );
             self.y += 20.0;
         }
@@ -384,11 +415,12 @@ impl<'a> Render<'a> {
 
 pub fn stops_png(
     render_target: RenderTarget,
+    shared: Arc<SharedRenderData>,
     layout: Layout,
     config_file: &ConfigFile,
 ) -> Result<Vec<u8>> {
     let image_data = render_ctx(render_target, config_file, |canvas| {
-        let ctx = Render::new(canvas, config_file)?;
+        let ctx = Render::new(canvas, shared, config_file)?;
         ctx.draw(&layout)?;
 
         Ok(())
@@ -399,11 +431,12 @@ pub fn stops_png(
 
 pub fn error_png(
     render_target: RenderTarget,
+    shared: Arc<SharedRenderData>,
     config_file: &ConfigFile,
     error: eyre::Report,
 ) -> Result<Vec<u8>> {
     let data = render_ctx(render_target, config_file, move |canvas| {
-        let ctx = Render::new(canvas, config_file)?;
+        let ctx = Render::new(canvas, shared, config_file)?;
         ctx.draw_error(error);
         Ok(())
     })?;

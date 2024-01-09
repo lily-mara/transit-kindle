@@ -19,12 +19,13 @@ use crate::{
     config::ConfigFile,
     html::stops_html,
     layout::data_to_layout,
-    png::{self, RenderTarget},
+    png::{self, RenderTarget, SharedRenderData},
 };
 
 #[derive(Clone)]
 struct AppState {
     data_access: Arc<DataAccess>,
+    shared_render_data: Arc<SharedRenderData>,
     config_file: ConfigFile,
 }
 
@@ -36,6 +37,7 @@ trait WrapErrPng<T> {
     fn wrap_err_png(
         self,
         render_target: RenderTarget,
+        shared: &Arc<SharedRenderData>,
         config_file: &ConfigFile,
     ) -> Result<T, ErrorPng>;
 }
@@ -44,12 +46,13 @@ impl<T> WrapErrPng<T> for eyre::Result<T> {
     fn wrap_err_png(
         self,
         render_target: RenderTarget,
+        shared: &Arc<SharedRenderData>,
         config_file: &ConfigFile,
     ) -> Result<T, ErrorPng> {
         match self {
             Ok(x) => Ok(x),
             Err(error) => Err(ErrorPng {
-                data: png::error_png(render_target, config_file, error).unwrap(),
+                data: png::error_png(render_target, shared.clone(), config_file, error).unwrap(),
             }),
         }
     }
@@ -66,7 +69,11 @@ impl IntoResponse for ErrorPng {
     }
 }
 
-pub async fn serve(data_access: Arc<DataAccess>, config_file: ConfigFile) -> eyre::Result<()> {
+pub async fn serve(
+    data_access: Arc<DataAccess>,
+    shared_render_data: Arc<SharedRenderData>,
+    config_file: ConfigFile,
+) -> eyre::Result<()> {
     let app = Router::new()
         .route("/kindle.png", get(handle_kindle_png))
         .route("/browser.png", get(handle_stops_browser_png))
@@ -74,6 +81,7 @@ pub async fn serve(data_access: Arc<DataAccess>, config_file: ConfigFile) -> eyr
         .route("/", get(handle_redirect_kindle))
         .with_state(AppState {
             data_access,
+            shared_render_data,
             config_file,
         })
         .layer(ServiceBuilder::new().layer(TraceLayer::new_for_http()));
@@ -100,13 +108,18 @@ async fn generic_png_handler(
         .load_stop_data(state.config_file.clone())
         .await
         .wrap_err("load stop data")
-        .wrap_err_png(render_target, &state.config_file)?;
+        .wrap_err_png(render_target, &state.shared_render_data, &state.config_file)?;
 
     let layout = data_to_layout(stop_data, &state.config_file);
 
-    let data = png::stops_png(render_target, layout, &state.config_file)
-        .wrap_err("render schedule")
-        .wrap_err_png(render_target, &state.config_file)?;
+    let data = png::stops_png(
+        render_target,
+        state.shared_render_data.clone(),
+        layout,
+        &state.config_file,
+    )
+    .wrap_err("render schedule")
+    .wrap_err_png(render_target, &state.shared_render_data, &state.config_file)?;
 
     Ok(Response::builder()
         .status(StatusCode::OK)

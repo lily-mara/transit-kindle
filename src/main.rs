@@ -1,5 +1,6 @@
 use api_client::DataAccess;
 use eyre::Result;
+use png::SharedRenderData;
 use tracing_subscriber::EnvFilter;
 
 /// unwrap an option, `continue` if it's None
@@ -36,8 +37,9 @@ async fn main() -> Result<()> {
     }
 
     let data_access = DataAccess::new(config_file.clone());
+    let shared_render_data = SharedRenderData::new();
 
-    server::serve(data_access, config_file).await?;
+    server::serve(data_access, shared_render_data, config_file).await?;
 
     Ok(())
 }
