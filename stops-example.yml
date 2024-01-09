@@ -1,0 +1,22 @@
+stops:
+  - agency: "SF"
+    stops:
+      # List of stop IDs
+      - "XXX"
+api_key: "<api key from 511.org>"
+layout:
+  width: 1024
+  height: 758
+  left:
+    sections:
+      - text: "Muni Inbound"
+      - agency: "SF"
+        # Lines (seem to) all have "directions" on them that corresponds with
+        # the general direction of traffic flow. Use that to create columns on
+        # the page.
+        direction: "IB"
+  right:
+    sections:
+      - text: "Muni Outbound"
+      - agency: "SF"
+        direction: "OB"
