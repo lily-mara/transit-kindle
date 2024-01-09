@@ -199,7 +199,7 @@ impl<'a> Render<'a> {
         let rect = bounds.with_offset((x, self.y));
 
         self.canvas
-            .draw_round_rect(rect, 10.0, 10.0, &self.grey_paint);
+            .draw_round_rect(rect, 24.0, 24.0, &self.grey_paint);
 
         self.canvas
             .draw_text_blob(&blob, (x, self.y), &self.black_paint);
