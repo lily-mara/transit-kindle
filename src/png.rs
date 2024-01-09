@@ -1,4 +1,7 @@
-use std::collections::HashMap;
+use std::{
+    collections::{hash_map::DefaultHasher, HashMap},
+    hash::Hasher,
+};
 
 use crate::{
     config::ConfigFile,
@@ -84,6 +87,7 @@ struct Render<'a> {
     black_paint_heavy: Paint,
     grey_paint: Paint,
     light_grey_paint: Paint,
+    line_id_bubble_paint: Paint,
 
     typeface: Typeface,
     font: Font,
@@ -105,8 +109,8 @@ impl<'a> Render<'a> {
         let typeface = Typeface::new("Liberation Sans", FontStyle::bold())
             .ok_or(eyre!("failed to construct skia typeface"))?;
 
-        let mut light_grey_paint = Paint::new(Color4f::new(0.8, 0.8, 0.8, 1.0), None);
-        light_grey_paint.set_anti_alias(true);
+        let mut line_bubble_paint = Paint::new(Color4f::new(0.8, 0.8, 0.8, 1.0), None);
+        line_bubble_paint.set_anti_alias(true);
 
         Ok(Self {
             canvas,
@@ -115,7 +119,9 @@ impl<'a> Render<'a> {
             black_paint_heavy,
 
             grey_paint: Paint::new(Color4f::new(0.7, 0.7, 0.7, 1.0), None),
-            light_grey_paint,
+
+            line_id_bubble_paint: line_bubble_paint,
+            light_grey_paint: Paint::new(Color4f::new(0.8, 0.8, 0.8, 1.0), None),
 
             font: Font::new(&typeface, 24.0),
             typeface,
@@ -151,7 +157,7 @@ impl<'a> Render<'a> {
         for (idx, line) in agency.lines.iter().enumerate() {
             let x = x1 + 20.0;
 
-            let line_id_bounds = self.draw_text_in_bubble(&line.id, x)?;
+            let line_id_bounds = self.draw_line_id_bubble(&line.id, x)?;
 
             let destination_blob = TextBlob::new(&line.destination, &self.font)
                 .ok_or(eyre!("failed to construct skia text blob"))?;
@@ -187,17 +193,32 @@ impl<'a> Render<'a> {
         Ok(())
     }
 
-    fn draw_text_in_bubble(&mut self, text: &str, x: f32) -> Result<Rect> {
-        let blob =
-            TextBlob::new(text, &self.font).ok_or(eyre!("failed to construct skia text blob"))?;
+    fn map_range(from_range: (f32, f32), to_range: (f32, f32), s: f32) -> f32 {
+        to_range.0 + (s - from_range.0) * (to_range.1 - to_range.0) / (from_range.1 - from_range.0)
+    }
 
-        let (text_width, text_measurements) = self.font.measure_str(text, Some(&self.black_paint));
+    fn draw_line_id_bubble(&mut self, line_id: &str, x: f32) -> Result<Rect> {
+        let blob = TextBlob::new(line_id, &self.font)
+            .ok_or(eyre!("failed to construct skia text blob"))?;
+
+        let (text_width, text_measurements) =
+            self.font.measure_str(line_id, Some(&self.black_paint));
 
         let bounds = Rect::new(x, self.y + text_measurements.top, x + text_width, self.y)
             .with_outset((10.0, 10.0));
 
+        let mut color_hasher = DefaultHasher::new();
+        color_hasher.write(line_id.as_bytes());
+        let color_hash = color_hasher.finish() as f32;
+
+        // map a value in the space 0..u64::MAX to the space 0.3..0.9
+        let color = Self::map_range((0.0, u64::MAX as f32), (0.5, 0.9), color_hash);
+
+        self.line_id_bubble_paint
+            .set_color4f(Color4f::new(color, color, color, 1.0), None);
+
         self.canvas
-            .draw_round_rect(bounds, 24.0, 24.0, &self.light_grey_paint);
+            .draw_round_rect(bounds, 24.0, 24.0, &self.line_id_bubble_paint);
 
         self.canvas
             .draw_text_blob(&blob, (x, self.y), &self.black_paint);
