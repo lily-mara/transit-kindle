@@ -10,14 +10,18 @@ use crate::{
 };
 use chrono::{prelude::*, Duration};
 use eyre::{bail, eyre, Result};
+use serde::Deserialize;
 use skia_safe::{
     gradient_shader::GradientShaderColors, utils::text_utils::Align, Bitmap, Canvas, Color,
     Color4f, Font, FontMgr, ImageInfo, Paint, Point, Rect, Shader, TextBlob, TileMode, Typeface,
 };
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Deserialize)]
 pub enum RenderTarget {
+    #[serde(rename = "kindle")]
     Kindle,
+
+    #[serde(rename = "browser")]
     Browser,
 }
 
@@ -371,6 +375,13 @@ impl<'a> Render<'a> {
         self.y += 12.0;
     }
 
+    fn draw_black(self) {
+        self.canvas.draw_rect(
+            Rect::new(0.0, 0.0, self.width, self.height),
+            &self.shared.black_paint,
+        );
+    }
+
     fn draw(mut self, layout: &Layout) -> Result<()> {
         self.y = 0.0;
         for row in &layout.left.rows {
@@ -422,6 +433,21 @@ pub fn stops_png(
     let image_data = render_ctx(render_target, config_file, |canvas| {
         let ctx = Render::new(canvas, shared, config_file)?;
         ctx.draw(&layout)?;
+
+        Ok(())
+    })?;
+
+    Ok(image_data)
+}
+
+pub fn black_png(
+    render_target: RenderTarget,
+    shared: Arc<SharedRenderData>,
+    config_file: &ConfigFile,
+) -> Result<Vec<u8>> {
+    let image_data = render_ctx(render_target, config_file, |canvas| {
+        let ctx = Render::new(canvas, shared, config_file)?;
+        ctx.draw_black();
 
         Ok(())
     })?;

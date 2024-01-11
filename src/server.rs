@@ -2,13 +2,14 @@ use std::sync::Arc;
 
 use axum::{
     body::{Body, Bytes},
-    extract::State,
+    extract::{Query, State},
     http::StatusCode,
     response::{Html, IntoResponse, Redirect, Response},
     routing::get,
     Router,
 };
 use eyre::Context;
+use serde::Deserialize;
 use tokio::net::TcpListener;
 use tower::ServiceBuilder;
 use tower_http::trace::TraceLayer;
@@ -75,10 +76,10 @@ pub async fn serve(
     config_file: ConfigFile,
 ) -> eyre::Result<()> {
     let app = Router::new()
-        .route("/kindle.png", get(handle_kindle_png))
-        .route("/browser.png", get(handle_stops_browser_png))
+        .route("/stops.png", get(handle_stops_png))
+        .route("/black.png", get(handle_black_png))
         .route("/stops.html", get(handle_stops_html))
-        .route("/", get(handle_redirect_kindle))
+        .route("/", get(handle_index))
         .with_state(AppState {
             data_access,
             shared_render_data,
@@ -95,14 +96,16 @@ pub async fn serve(
     Ok(())
 }
 
-async fn handle_redirect_kindle() -> Redirect {
-    Redirect::temporary("/kindle.png")
+async fn handle_index() -> Redirect {
+    Redirect::temporary("/stops.html")
 }
 
-async fn generic_png_handler(
-    render_target: RenderTarget,
-    state: AppState,
+async fn handle_stops_png(
+    State(state): State<AppState>,
+    target: Option<Query<ImageTarget>>,
 ) -> Result<Response<Body>, ErrorPng> {
+    let render_target = target.map(|t| t.0.target).unwrap_or(RenderTarget::Browser);
+
     let stop_data = state
         .data_access
         .load_stop_data(state.config_file.clone())
@@ -142,12 +145,28 @@ async fn handle_stops_html(State(state): State<AppState>) -> Result<Html<String>
     Ok(Html(html))
 }
 
-async fn handle_stops_browser_png(
-    State(state): State<AppState>,
-) -> Result<Response<Body>, ErrorPng> {
-    generic_png_handler(RenderTarget::Browser, state).await
+#[derive(Deserialize)]
+struct ImageTarget {
+    target: RenderTarget,
 }
 
-async fn handle_kindle_png(State(state): State<AppState>) -> Result<Response<Body>, ErrorPng> {
-    generic_png_handler(RenderTarget::Kindle, state).await
+async fn handle_black_png(
+    State(state): State<AppState>,
+    target: Option<Query<ImageTarget>>,
+) -> Result<Response<Body>, ErrorPng> {
+    let render_target = target.map(|t| t.0.target).unwrap_or(RenderTarget::Browser);
+
+    let data = png::black_png(
+        render_target,
+        state.shared_render_data.clone(),
+        &state.config_file,
+    )
+    .wrap_err("render black box")
+    .wrap_err_png(render_target, &state.shared_render_data, &state.config_file)?;
+
+    Ok(Response::builder()
+        .status(StatusCode::OK)
+        .header("Content-Type", "image/png")
+        .body(Body::from(Bytes::from(data)))
+        .unwrap())
 }
