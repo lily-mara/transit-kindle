@@ -28,7 +28,7 @@ pub enum RenderTarget {
 fn render_ctx(
     render_target: RenderTarget,
     config_file: &ConfigFile,
-    closure: impl FnOnce(&mut Canvas) -> Result<()>,
+    closure: impl FnOnce(&Canvas) -> Result<()>,
 ) -> Result<Vec<u8>> {
     let mut bitmap = Bitmap::new();
     if !bitmap.set_info(
@@ -44,12 +44,12 @@ fn render_ctx(
     }
     bitmap.alloc_pixels();
 
-    let mut canvas =
+    let canvas =
         Canvas::from_bitmap(&bitmap, None).ok_or(eyre!("failed to construct skia canvas"))?;
 
     canvas.clear(Color4f::new(1.0, 1.0, 1.0, 1.0));
 
-    closure(&mut canvas)?;
+    closure(&canvas)?;
 
     let image = bitmap.as_image();
 
@@ -68,7 +68,7 @@ fn render_ctx(
         }
         rotated_bitmap.alloc_pixels();
 
-        let mut rotated_canvas = Canvas::from_bitmap(&rotated_bitmap, None)
+        let rotated_canvas = Canvas::from_bitmap(&rotated_bitmap, None)
             .ok_or(eyre!("failed to construct skia canvas"))?;
 
         rotated_canvas.translate(Point::new(config_file.layout.height as f32, 0.0));
@@ -102,7 +102,7 @@ struct Render<'a> {
 
     line_id_bubble_paint: Paint,
 
-    canvas: &'a mut Canvas,
+    canvas: &'a Canvas,
 
     width: f32,
     height: f32,
@@ -136,11 +136,7 @@ impl SharedRenderData {
 }
 
 impl<'a> Render<'a> {
-    fn new(
-        canvas: &'a mut Canvas,
-        shared: Arc<SharedRenderData>,
-        config: &ConfigFile,
-    ) -> Result<Self> {
+    fn new(canvas: &'a Canvas, shared: Arc<SharedRenderData>, config: &ConfigFile) -> Result<Self> {
         let mut line_bubble_paint = Paint::new(Color4f::new(0.8, 0.8, 0.8, 1.0), None);
         line_bubble_paint.set_anti_alias(true);
 
