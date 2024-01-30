@@ -49,6 +49,7 @@ struct MonitoredVehicleJourney {
 struct MonitoredCall {
     expected_arrival_time: Option<String>,
     stop_point_ref: String,
+    destination_display: Option<String>,
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -296,7 +297,10 @@ impl Client {
             let expected_arrival_time = opt_cont!(&journey.monitored_call.expected_arrival_time);
             let line = opt_cont!(&journey.line_ref);
             let direction = opt_cont!(&journey.direction_ref);
-            let destination = opt_cont!(&journey.destination_name);
+            let destination = opt_cont!(journey
+                .monitored_call
+                .destination_display
+                .or(journey.destination_name));
 
             let time = expected_arrival_time.parse::<DateTime<Utc>>()?;
 
@@ -306,9 +310,9 @@ impl Client {
 
             let destination = self
                 .destination_subs
-                .get(destination)
+                .get(&destination)
                 .map(|d| d)
-                .unwrap_or(destination)
+                .unwrap_or(&destination)
                 .clone();
 
             let mut line = line.clone();

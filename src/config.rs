@@ -5,6 +5,7 @@ use serde::Deserialize;
 #[derive(Deserialize, Clone)]
 pub struct ConfigFile {
     pub stops: Vec<StopConfig>,
+    #[serde(default)]
     pub destination_subs: HashMap<String, String>,
     pub layout: LayoutConfig,
     pub api_key: String,
