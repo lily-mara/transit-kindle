@@ -30,10 +30,16 @@ fn render_ctx(
     config_file: &ConfigFile,
     closure: impl FnOnce(&Canvas) -> Result<()>,
 ) -> Result<Vec<u8>> {
+    let dimensions = if render_target == RenderTarget::Kindle {
+        (config_file.layout.height, config_file.layout.width)
+    } else {
+        (config_file.layout.width, config_file.layout.height)
+    };
+
     let mut bitmap = Bitmap::new();
     if !bitmap.set_info(
         &ImageInfo::new(
-            (config_file.layout.width, config_file.layout.height),
+            dimensions,
             skia_safe::ColorType::Gray8,
             skia_safe::AlphaType::Unknown,
             None,
@@ -46,6 +52,15 @@ fn render_ctx(
 
     let canvas =
         Canvas::from_bitmap(&bitmap, None).ok_or(eyre!("failed to construct skia canvas"))?;
+    if render_target == RenderTarget::Kindle {
+        canvas.rotate(
+            90.0,
+            Some(Point::new(
+                config_file.layout.height as f32 / 2.0,
+                config_file.layout.height as f32 / 2.0,
+            )),
+        );
+    }
 
     canvas.clear(Color4f::new(1.0, 1.0, 1.0, 1.0));
 
@@ -53,34 +68,7 @@ fn render_ctx(
 
     let image = bitmap.as_image();
 
-    let final_image = if render_target == RenderTarget::Kindle {
-        let mut rotated_bitmap = Bitmap::new();
-        if !rotated_bitmap.set_info(
-            &ImageInfo::new(
-                (config_file.layout.height, config_file.layout.width),
-                skia_safe::ColorType::Gray8,
-                skia_safe::AlphaType::Unknown,
-                None,
-            ),
-            None,
-        ) {
-            bail!("failed to initialize skia bitmap");
-        }
-        rotated_bitmap.alloc_pixels();
-
-        let rotated_canvas = Canvas::from_bitmap(&rotated_bitmap, None)
-            .ok_or(eyre!("failed to construct skia canvas"))?;
-
-        rotated_canvas.translate(Point::new(config_file.layout.height as f32, 0.0));
-        rotated_canvas.rotate(90.0, Some(Point::new(0.0, 0.0)));
-        rotated_canvas.draw_image(image, (0, 0), None);
-
-        rotated_bitmap.as_image()
-    } else {
-        image
-    };
-
-    let image_data = final_image
+    let image_data = image
         .encode(None, skia_safe::EncodedImageFormat::PNG, None)
         .ok_or(eyre!("failed to encode skia image"))?;
 
