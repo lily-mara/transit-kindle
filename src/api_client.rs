@@ -192,7 +192,7 @@ impl Client {
 
     fn load_cached(path: &str) -> Result<Cached> {
         debug!(path, "trying to load cached file");
-        let file = std::fs::File::open(&path)?;
+        let file = std::fs::File::open(path)?;
         let cached: Cached = serde_json::from_reader(file)?;
 
         let age = Utc::now() - cached.live_time;
@@ -311,7 +311,6 @@ impl Client {
             let destination = self
                 .destination_subs
                 .get(&destination)
-                .map(|d| d)
                 .unwrap_or(&destination)
                 .clone();
 

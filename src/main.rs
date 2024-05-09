@@ -1,6 +1,6 @@
 use api_client::DataAccess;
 use eyre::Result;
-use png::SharedRenderData;
+use render::SharedRenderData;
 use tracing_subscriber::EnvFilter;
 
 /// unwrap an option, `continue` if it's None
@@ -16,9 +16,10 @@ macro_rules! opt_cont {
 mod agencies;
 mod api_client;
 mod config;
+mod handler;
 mod html;
 mod layout;
-mod png;
+mod render;
 mod server;
 
 use crate::config::*;
@@ -27,7 +28,6 @@ use crate::config::*;
 async fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env())
-        .without_time()
         .init();
 
     let config_file = serde_yaml::from_reader::<_, ConfigFile>(std::fs::File::open("stops.yml")?)?;

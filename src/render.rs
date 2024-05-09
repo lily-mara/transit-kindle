@@ -4,76 +4,14 @@ use std::{
     sync::Arc,
 };
 
-use crate::{
-    config::ConfigFile,
-    layout::{Agency, Layout, Line, Row},
-};
+use crate::layout::{Agency, Layout, Line, Row};
 use chrono::{prelude::*, Duration};
-use eyre::{bail, eyre, Result};
-use serde::Deserialize;
+use eyre::{eyre, Result};
+use kindling::ImageParams;
 use skia_safe::{
-    gradient_shader::GradientShaderColors, utils::text_utils::Align, Bitmap, Canvas, Color,
-    Color4f, Font, FontMgr, ImageInfo, Paint, Point, Rect, Shader, TextBlob, TileMode, Typeface,
+    gradient_shader::GradientShaderColors, utils::text_utils::Align, Canvas, Color, Color4f, Font,
+    FontMgr, Paint, Rect, Shader, TextBlob, TileMode,
 };
-
-#[derive(Clone, Copy, Debug, PartialEq, Deserialize)]
-pub enum RenderTarget {
-    #[serde(rename = "kindle")]
-    Kindle,
-
-    #[serde(rename = "browser")]
-    Browser,
-}
-
-fn render_ctx(
-    render_target: RenderTarget,
-    config_file: &ConfigFile,
-    closure: impl FnOnce(&Canvas) -> Result<()>,
-) -> Result<Vec<u8>> {
-    let dimensions = if render_target == RenderTarget::Kindle {
-        (config_file.layout.height, config_file.layout.width)
-    } else {
-        (config_file.layout.width, config_file.layout.height)
-    };
-
-    let mut bitmap = Bitmap::new();
-    if !bitmap.set_info(
-        &ImageInfo::new(
-            dimensions,
-            skia_safe::ColorType::Gray8,
-            skia_safe::AlphaType::Unknown,
-            None,
-        ),
-        None,
-    ) {
-        bail!("failed to initialize skia bitmap");
-    }
-    bitmap.alloc_pixels();
-
-    let canvas =
-        Canvas::from_bitmap(&bitmap, None).ok_or(eyre!("failed to construct skia canvas"))?;
-    if render_target == RenderTarget::Kindle {
-        canvas.rotate(
-            90.0,
-            Some(Point::new(
-                config_file.layout.height as f32 / 2.0,
-                config_file.layout.height as f32 / 2.0,
-            )),
-        );
-    }
-
-    canvas.clear(Color4f::new(1.0, 1.0, 1.0, 1.0));
-
-    closure(&canvas)?;
-
-    let image = bitmap.as_image();
-
-    let image_data = image
-        .encode(None, skia_safe::EncodedImageFormat::PNG, None)
-        .ok_or(eyre!("failed to encode skia image"))?;
-
-    Ok(image_data.as_bytes().into())
-}
 
 pub struct SharedRenderData {
     black_paint: Paint,
@@ -81,11 +19,10 @@ pub struct SharedRenderData {
     grey_paint: Paint,
     light_grey_paint: Paint,
     white_paint: Paint,
-    typeface: Typeface,
     font: Font,
 }
 
-struct Render<'a> {
+pub(crate) struct Render<'a> {
     shared: Arc<SharedRenderData>,
 
     line_id_bubble_paint: Paint,
@@ -118,13 +55,16 @@ impl SharedRenderData {
             white_paint: Paint::new(Color4f::new(1.0, 1.0, 1.0, 1.0), None),
 
             font: Font::new(&typeface, 24.0),
-            typeface,
         })
     }
 }
 
 impl<'a> Render<'a> {
-    fn new(canvas: &'a Canvas, shared: Arc<SharedRenderData>, config: &ConfigFile) -> Result<Self> {
+    pub(crate) fn new(
+        canvas: &'a Canvas,
+        shared: Arc<SharedRenderData>,
+        params: ImageParams,
+    ) -> Result<Self> {
         let mut line_bubble_paint = Paint::new(Color4f::new(0.8, 0.8, 0.8, 1.0), None);
         line_bubble_paint.set_anti_alias(true);
 
@@ -134,11 +74,11 @@ impl<'a> Render<'a> {
 
             line_id_bubble_paint: line_bubble_paint,
 
-            width: config.layout.width as f32,
-            height: config.layout.height as f32,
+            width: params.width as f32,
+            height: params.height as f32,
             y: 0.0,
 
-            x_midpoint: config.layout.width as f32 / 2.0,
+            x_midpoint: params.width as f32 / 2.0,
         })
     }
 
@@ -303,7 +243,10 @@ impl<'a> Render<'a> {
             &self.shared.black_paint_heavy,
         );
 
-        let now = Local::now();
+        let now = Utc
+            .with_ymd_and_hms(2024, 4, 30, 23, 2, 5)
+            .unwrap()
+            .with_timezone(&Local);
         let time = now.format("%a %b %d - %H:%M").to_string();
 
         let mut agency_str = String::new();
@@ -359,14 +302,7 @@ impl<'a> Render<'a> {
         self.y += 12.0;
     }
 
-    fn draw_black(self) {
-        self.canvas.draw_rect(
-            Rect::new(0.0, 0.0, self.width, self.height),
-            &self.shared.black_paint,
-        );
-    }
-
-    fn draw(mut self, layout: &Layout) -> Result<()> {
+    pub(crate) fn draw(mut self, layout: &Layout) -> Result<()> {
         self.y = 0.0;
         for row in &layout.left.rows {
             self.draw_row(row, 0.0, self.x_midpoint)?;
@@ -387,69 +323,4 @@ impl<'a> Render<'a> {
 
         Ok(())
     }
-
-    fn draw_error(mut self, error: eyre::Report) {
-        let big_font = Font::new(&self.shared.typeface, 36.0);
-        let small_font: skia_safe::Handle<_> = Font::new(&self.shared.typeface, 12.0);
-
-        self.canvas
-            .draw_str("ERROR", (100, 200), &big_font, &self.shared.black_paint);
-        self.y = 250.0;
-
-        for e in error.chain() {
-            self.canvas.draw_str(
-                format!("{e}"),
-                (100.0, self.y),
-                &small_font,
-                &self.shared.black_paint,
-            );
-            self.y += 20.0;
-        }
-    }
-}
-
-pub fn stops_png(
-    render_target: RenderTarget,
-    shared: Arc<SharedRenderData>,
-    layout: Layout,
-    config_file: &ConfigFile,
-) -> Result<Vec<u8>> {
-    let image_data = render_ctx(render_target, config_file, |canvas| {
-        let ctx = Render::new(canvas, shared, config_file)?;
-        ctx.draw(&layout)?;
-
-        Ok(())
-    })?;
-
-    Ok(image_data)
-}
-
-pub fn black_png(
-    render_target: RenderTarget,
-    shared: Arc<SharedRenderData>,
-    config_file: &ConfigFile,
-) -> Result<Vec<u8>> {
-    let image_data = render_ctx(render_target, config_file, |canvas| {
-        let ctx = Render::new(canvas, shared, config_file)?;
-        ctx.draw_black();
-
-        Ok(())
-    })?;
-
-    Ok(image_data)
-}
-
-pub fn error_png(
-    render_target: RenderTarget,
-    shared: Arc<SharedRenderData>,
-    config_file: &ConfigFile,
-    error: eyre::Report,
-) -> Result<Vec<u8>> {
-    let data = render_ctx(render_target, config_file, move |canvas| {
-        let ctx = Render::new(canvas, shared, config_file)?;
-        ctx.draw_error(error);
-        Ok(())
-    })?;
-
-    Ok(data)
 }

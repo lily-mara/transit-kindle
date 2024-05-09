@@ -15,8 +15,6 @@ pub struct ConfigFile {
 pub struct LayoutConfig {
     pub left: SideConfig,
     pub right: SideConfig,
-    pub width: i32,
-    pub height: i32,
 }
 
 #[derive(Deserialize, Clone)]

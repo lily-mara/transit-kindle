@@ -5,8 +5,6 @@ stops:
       - "XXX"
 api_key: "<api key from 511.org>"
 layout:
-  width: 1024
-  height: 758
   left:
     sections:
       - text: "Muni Inbound"
