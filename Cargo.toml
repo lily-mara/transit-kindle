@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-kindling = "0.1"
+kindling = "0.1.2"
 askama = "0.12.0"
 axum = "0.7"
 chrono = { version = "0.4.26", features = ["serde"] }
@@ -19,7 +19,7 @@ serde = { version = "1.0.174", features = ["derive"] }
 serde_json = "1.0.103"
 serde_path_to_error = "0.1.14"
 serde_yaml = "0.9.25"
-skia-safe = "0.70.0"
+skia-safe = "0.73.0"
 tokio = { version = "1.29.1", features = ["full"] }
 tower = "0.4.13"
 tower-http = { version = "0.5", features = ["trace"] }

@@ -32,13 +32,8 @@ impl kindling::Handler for TransitHandler {
         Ok(layout)
     }
 
-    fn draw(
-        &self,
-        canvas: &skia_safe::Canvas,
-        params: kindling::ImageParams,
-        layout: Layout,
-    ) -> Result<()> {
-        let ctx = Render::new(canvas, self.shared.clone(), params)?;
+    fn draw(&self, canvas: &skia_safe::Canvas, layout: Layout) -> Result<()> {
+        let ctx = Render::new(canvas, self.shared.clone())?;
         ctx.draw(&layout)?;
 
         Ok(())

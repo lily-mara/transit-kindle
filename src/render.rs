@@ -7,7 +7,6 @@ use std::{
 use crate::layout::{Agency, Layout, Line, Row};
 use chrono::{prelude::*, Duration};
 use eyre::{eyre, Result};
-use kindling::ImageParams;
 use skia_safe::{
     gradient_shader::GradientShaderColors, utils::text_utils::Align, Canvas, Color, Color4f, Font,
     FontMgr, Paint, Rect, Shader, TextBlob, TileMode,
@@ -60,13 +59,12 @@ impl SharedRenderData {
 }
 
 impl<'a> Render<'a> {
-    pub(crate) fn new(
-        canvas: &'a Canvas,
-        shared: Arc<SharedRenderData>,
-        params: ImageParams,
-    ) -> Result<Self> {
+    pub(crate) fn new(canvas: &'a Canvas, shared: Arc<SharedRenderData>) -> Result<Self> {
         let mut line_bubble_paint = Paint::new(Color4f::new(0.8, 0.8, 0.8, 1.0), None);
         line_bubble_paint.set_anti_alias(true);
+
+        let width = canvas.image_info().width() as f32;
+        let height = canvas.image_info().height() as f32;
 
         Ok(Self {
             canvas,
@@ -74,11 +72,11 @@ impl<'a> Render<'a> {
 
             line_id_bubble_paint: line_bubble_paint,
 
-            width: params.width as f32,
-            height: params.height as f32,
+            width,
+            height,
             y: 0.0,
 
-            x_midpoint: params.width as f32 / 2.0,
+            x_midpoint: width / 2.0,
         })
     }
 
