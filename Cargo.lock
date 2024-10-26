@@ -739,6 +739,8 @@ dependencies = [
 [[package]]
 name = "kindling"
 version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dd9880836ceb8b84a331158ef22571423ddc8dd767f820d0431b0c2993873035"
 dependencies = [
  "askama",
  "axum",
