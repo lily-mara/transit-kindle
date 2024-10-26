@@ -39,7 +39,6 @@ pub async fn serve(
         )
         .attach()
         .route("/stops.html", get(handle_stops_html))
-        .route("/", get(handle_index))
         .with_state(AppState {
             data_access,
             config_file,
@@ -53,10 +52,6 @@ pub async fn serve(
     axum::serve(listener, app.into_make_service()).await?;
 
     Ok(())
-}
-
-async fn handle_index() -> Redirect {
-    Redirect::temporary("/stops.html")
 }
 
 async fn handle_stops_html(State(state): State<AppState>) -> Result<Html<String>, StatusCode> {
