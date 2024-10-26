@@ -1,6 +1,7 @@
 use api_client::DataAccess;
 use eyre::Result;
 use render::SharedRenderData;
+use std::io::IsTerminal;
 use tracing_subscriber::EnvFilter;
 
 /// unwrap an option, `continue` if it's None
@@ -28,6 +29,7 @@ use crate::config::*;
 async fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env())
+        .with_ansi(std::io::stdout().is_terminal())
         .init();
 
     let config_file = serde_yaml::from_reader::<_, ConfigFile>(std::fs::File::open("stops.yml")?)?;
