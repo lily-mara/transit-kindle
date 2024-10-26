@@ -13,7 +13,7 @@ pub async fn serve(
     shared_render_data: Arc<SharedRenderData>,
     config_file: ConfigFile,
 ) -> eyre::Result<()> {
-    let app = kindling::ApplicationBuilder::new(Router::new(), "http://localhost:3001")
+    let app = kindling::ApplicationBuilder::new(Router::new(), "http://transit.lilys.hair")
         .add_handler(
             "/stops.png",
             crate::handler::TransitHandler {
