@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use axum::async_trait;
 use eyre::{Context, Result};
+use kindling::Orientation;
 
 use crate::{
     api_client::DataAccess,
@@ -37,5 +38,9 @@ impl kindling::Handler for TransitHandler {
         ctx.draw(&layout)?;
 
         Ok(())
+    }
+
+    fn orientation() -> Orientation {
+        Orientation::Landscape
     }
 }
