@@ -18,7 +18,6 @@ mod agencies;
 mod api_client;
 mod config;
 mod handler;
-mod html;
 mod layout;
 mod render;
 mod server;

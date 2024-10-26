@@ -240,9 +240,9 @@ checksum = "89b2fd2a0dcf38d7971e2194b6b6eebab45ae01067456a7fd93d5547a61b70be"
 
 [[package]]
 name = "cc"
-version = "1.0.79"
+version = "1.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "50d30906286121d95be3d479533b458f87493b30a4b5f79a607db8f5d11aa91f"
+checksum = "e9e8aabfac534be767c909e0690571677d49f41bd8465ae876fe043d52ba5292"
 
 [[package]]
 name = "cexpr"
@@ -738,10 +738,11 @@ dependencies = [
 
 [[package]]
 name = "kindling"
-version = "0.1.2"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ed1ff2ba0de71259bb066cc0964f7943bd503a1b4cae914baa5bea012a59bf6"
+checksum = "b1bdddbaa8e77af95cc9d4d2d8100d675135911b113add54fc7616ac216c7a2c"
 dependencies = [
+ "askama",
  "axum",
  "chrono",
  "eyre",
@@ -1312,9 +1313,9 @@ dependencies = [
 
 [[package]]
 name = "skia-bindings"
-version = "0.73.0"
+version = "0.78.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "43555ec5d87ee8c14273f3045bf09504a58c6afe842c51d1593b62abf095aa96"
+checksum = "29880a81b088de322e9c5306236c70761a61b5fa4df3c15c93bad3ce890ce34c"
 dependencies = [
  "bindgen",
  "cc",
@@ -1329,9 +1330,9 @@ dependencies = [
 
 [[package]]
 name = "skia-safe"
-version = "0.73.0"
+version = "0.78.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c431cc5c1ca6008199bf2e849083dd05539c9f2a2ffc1c24b521e6e0ef2c31a7"
+checksum = "4f15700ac678c06649077495acbba07e7ae01e5ca46b7dc18213f2c3477ada71"
 dependencies = [
  "bitflags 2.3.3",
  "lazy_static",
@@ -1645,7 +1646,6 @@ dependencies = [
 name = "transit-kindle"
 version = "0.1.0"
 dependencies = [
- "askama",
  "axum",
  "chrono",
  "eyre",
