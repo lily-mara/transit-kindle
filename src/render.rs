@@ -6,6 +6,7 @@ use std::{
 
 use crate::layout::{Agency, Layout, Line, Row};
 use chrono::{prelude::*, Duration};
+use chrono_tz::US::Pacific;
 use eyre::{eyre, Result};
 use skia_safe::{
     gradient_shader::GradientShaderColors, utils::text_utils::Align, Canvas, Color, Color4f, Font,
@@ -241,10 +242,7 @@ impl<'a> Render<'a> {
             &self.shared.black_paint_heavy,
         );
 
-        let now = Utc
-            .with_ymd_and_hms(2024, 4, 30, 23, 2, 5)
-            .unwrap()
-            .with_timezone(&Local);
+        let now = Utc::now().with_timezone(&Pacific);
         let time = now.format("%a %b %d - %H:%M").to_string();
 
         let mut agency_str = String::new();
