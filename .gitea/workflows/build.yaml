@@ -1,0 +1,14 @@
+name: Build todoist Kindle binary
+on: [push]
+
+jobs:
+  build-amd64:
+    runs-on: ["arch-amd64"]
+    steps:
+      - uses: actions/checkout@master
+      - name: Compile
+        run: cargo build --release
+      - name: Move new binary
+        run: mv -f target/release/transit-kindle /opt/transit-kindle/
+      - name: Restart service
+        run: sudo systemctl restart transit-kindle
